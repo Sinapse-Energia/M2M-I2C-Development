@@ -25,7 +25,7 @@ These function(s) should be developed in the file **southbound_ec.c**
 
 The main function of this development should be called from **main.c** with different options in order to demonstrate its behaviour and ease the testing.  
 
-# Resources
+# Ressources
 
 * HW-FW document available in the Docs folder
 * http://www.oneminuteinfo.com/2014/02/can-bus-obd-ii-explained-for-dummies.html
