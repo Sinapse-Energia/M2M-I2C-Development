@@ -47,6 +47,7 @@ No inputs for this function. Read / Listen the info of the devices with addresse
 * can_messages_list (List of struct): Return a list of structs where each struct contains an address and a payload sent by a CAN device 
 
 
+# Additional Information
 
 Normally we will work with OBDII messages but we want to have a generic function in order to be compatible with any High Layer Protocol over CAN.
 
