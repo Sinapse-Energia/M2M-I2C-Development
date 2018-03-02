@@ -5,30 +5,54 @@ CAN development in M2M commboard
 
 Southbound functions to be developed
 
-`result config_can(baud_rate, listen?, addreess_list)`
+## CAN configuration
 
-`result write_can_message(can_address, payload_to_be_send)`
+`result config_can(baudRate, listen, address_list)`
 
-`[can_address, payload_received] read_can_bus()`
+*Inputs*
 
-where addresses and payloads are codified in hexadecimal format
+* baudRate (int): Speed to be used in the CAN interface
+* listen (bool): Set if the device will work read and write the CAN bus or only the write it
+* address_list (List): List of the addresses that will listen the device. This list will contain N CAN addresses if the _listen_ is true. It can contains the broadcast address that indicates the device listen everything. Addresses codfied in HEX
 
-This function should be able to:
+*Output*
 
-1. Check address : Base or Extended
-2. Check payload : If it is bigger than 8 bytes, it should divide the message in several messages
-3. Create the CAN message
-4. Send the CAN message
-5. Receive the CAN response
-6. Extract the address and the payload of the CAN response
-7. Return address and payload
-8. Ideally, these subparts should be developed in independent sub functions
+* result: Number code indicating success (0) or error (number indicating the error code)
+
+## Write CAN message
+
+`result write_can_message(can_address, payload)`
+
+*Inputs*
+
+* can_address: Address that should contain the CAN message, could be a broadcast address. Address codified in HEX
+* payload: Payload to be sent codified in HEX. If bigger than 8 bytes, several CAN messages should be sent
+
+
+*Output*
+
+* result: Number code indicating success (0) or error (number indicating the error code)
+
+
+## Read CAN Bus
+
+`can_messages_list read_can_bus()`
+
+*Inputs*
+
+No inputs for this function. Read / Listen the info of the devices with addresses set in _config_can_
+
+*Output*
+
+* can_messages_list (List of struct): Return a list of structs where each struct contains an address and a payload sent by a CAN device 
+
+
 
 Normally we will work with OBDII messages but we want to have a generic function in order to be compatible with any High Layer Protocol over CAN.
 
 These function(s) should be developed in the file **southbound_ec.c**
 
-The main function of this development should be called from **main.c** with different options in order to demonstrate its behaviour and ease the testing.  
+The main three functions of this development should be called from **main.c** with different options in order to demonstrate its behaviour and ease the testing.  
 
 # Ressources
 
