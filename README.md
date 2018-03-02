@@ -6,7 +6,9 @@ CAN development in M2M commboard
 Southbound functions to be developed
 
 `result config_can(baud_rate, listen?, addreess_list)`
+
 `result write_can_message(can_address, payload_to_be_send)`
+
 `[can_address, payload_received] read_can_bus()`
 
 where addresses and payloads are codified in hexadecimal format
