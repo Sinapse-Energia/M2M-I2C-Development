@@ -1,5 +1,5 @@
-# M2M-CAN-Development
-CAN development in M2M commboard
+# M2M-I2C-Development
+I2C development in M2M commboard
 
 # TASKs TO-DO
 
