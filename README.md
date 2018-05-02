@@ -21,7 +21,7 @@ Southbound functions to be developed
 
 ## Write I2C message
 
-`result write_can_message(i2c_address, payload)`
+`result write_I2C_message(i2c_address, payload)`
 
 *Inputs*
 
