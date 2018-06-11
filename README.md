@@ -51,7 +51,7 @@ No inputs for this function. Read / Listen the info of the devices with addresse
 
 We want to have a generic function in order to be compatible with any High Layer Protocol over I2C.
 
-These function(s) should be developed in the file **southbound_ec.c**
+These function(s) should be developed in the file **southbound_iot.c**
 
 The main three functions of this development should be called from **main.c** with different options in order to demonstrate its behaviour and ease the testing.  
 
