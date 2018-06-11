@@ -35,6 +35,7 @@
   *
   ******************************************************************************/
 /* Includes ------------------------------------------------------------------*/
+#include <LSM6DS3.h>
 #include <string.h>
 #include <stdlib.h>  // provisional atoi()
 #include <stdarg.h>
@@ -54,6 +55,11 @@
 #include "utils.h"
 
 #include "dma.h"		// BYDMA
+#include "CAN_Util.h"
+#include "i2c.h"
+#include "TSL2561.h"
+#include "TSL2561_Internals.h"
+#include "PCAL6416A.h"
 
 
 // has to be moved to a utilities header when it should be
@@ -84,7 +90,8 @@ UART_HandleTypeDef huartDummy;
 
 /* USER CODE BEGIN PV */
 /* Private variables ---------------------------------------------------------*/
-
+StrLSM6DS3 strLSMDev;
+StrPCAL6416A strPCAL6416A;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -106,52 +113,9 @@ void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
 /* USER CODE END PFP */
 
 /* USER CODE BEGIN 0 */
-  int elapsed10secondsAux=0;
-  uint16_t elapsed10seconds=0; 					// At beginning this is 0
-  uint8_t LOG_ACTIVATED=0;				 		/// Enable to 1 if you want to show log through logUART
-  uint8_t LOG_GPRS=0;  							/// For showing only GPRS information
-  uint8_t WDT_ENABLED=0;						 /// Enable for activate independent watch dog timer
-  uint8_t timeoutGPRS=0; 						/// At beginning this is 0
-  uint32_t timeout=1000;				 		/// Timeout between AT command sending is 1000 milliseconds.
-  uint8_t rebootSystem=0;						 /// At beginning this is 0
-  uint8_t nTimesMaximumFail_GPRS=2; 			/// For initial loop of initializing GPRS device
-  uint8_t retriesGPRS=1; 						/// only one retries per AT command if something goes wrong
-  uint8_t existDNS=1; 							/// The IP of main server to connect is not 4 number separated by dot. It is a DNS.
-  uint8_t offsetLocalHour=0; 					/// for getting UTC time
-//  uint8_t APN[SIZE_APN]; 						/// Array where is saved the provider APN (format as example in Definitions.h)
-//  uint8_t IPPORT[SIZE_MAIN_SERVER]; 			/// Array where is saved main destination server to connect (IP and PORT format as example in Definitions.h)
-//  uint8_t SERVER_NTP[SIZE_NTP_SERVER]; 			/// Array where is saved server NTP to get UTC time (format as example in Definitions.h)
-//  uint8_t calendar[10];               			/// Array for saving all calendar parameters get from NTC server
-//  uint8_t idSIM[30];                 			 /// Array where is saved ID from SIMcard
-  uint8_t openFastConnection=0;      			 /// by default to 0, it is used for doing a quick connection when it is needed to call the connect function again
-  uint8_t setTransparentConnection=1;  			/// 1 for transparent connection, 0 for non-transparent. Then all data flow is command AT+ data
-//  uint8_t GPRSbuffer[SIZE_GPRS_BUFFER];			 /// received buffer with data from GPRS
-  uint8_t dataByteBufferIRQ;  					/// Last received byte from GPRS
-  //uint16_t GPRSBufferReceivedBytes;     		/// Number of received data from GPRS after a cleanningReceptionBuffer() is called
-  //uint16_t indexGPRSBufferReceived;
-  //uint16_t indexPickingReceivedBytes=0;
-  uint8_t connected=0;
-  //unsigned char buffer2[SIZE_GPRS_BUFFER];
-  int32_t quantityReceived=0;
-/* USER CODE END 0 */
-
-
-extern int	COMM_Init();
-
-char	*topicpub = 0;
-char	*topicsub = 0;
-char	*topicbrcast = 0;
-char	*topictr = 0;
-
-
 int		bydma = 1;
-
-
 int		nirqs = 0;
-
 int		hmqtt; 			// handle to the mqtt connection. Has to be a SIGNED integer
-
-
 int		connections = 0;  // this counter gives us a hint for distinguish reboot/connection
 
 // shoots to get connection times
@@ -159,369 +123,67 @@ uint32_t	tc0, //	start connection
 			tc1, // after open IP
 			tc2, // broker connected
 			tc3;
-
-
 st_CB *DataBuffer;
+int elapsed10secondsAux=0;
+uint16_t elapsed10seconds=0; 					// At beginning this is 0
+uint8_t LOG_ACTIVATED=0;				 		/// Enable to 1 if you want to show log through logUART
+uint8_t LOG_GPRS=0;  							/// For showing only GPRS information
+uint8_t WDT_ENABLED=0;						 /// Enable for activate independent watch dog timer
+uint8_t timeoutGPRS=0; 						/// At beginning this is 0
+uint32_t timeout=1000;				 		/// Timeout between AT command sending is 1000 milliseconds.
+uint8_t rebootSystem=0;						 /// At beginning this is 0
+uint8_t nTimesMaximumFail_GPRS=2; 			/// For initial loop of initializing GPRS device
+uint8_t retriesGPRS=1; 						/// only one retries per AT command if something goes wrong
+uint8_t existDNS=1; 							/// The IP of main server to connect is not 4 number separated by dot. It is a DNS.
+uint8_t offsetLocalHour=0; 					/// for getting UTC time
+//  uint8_t APN[SIZE_APN]; 						/// Array where is saved the provider APN (format as example in Definitions.h)
+//  uint8_t IPPORT[SIZE_MAIN_SERVER]; 			/// Array where is saved main destination server to connect (IP and PORT format as example in Definitions.h)
+//  uint8_t SERVER_NTP[SIZE_NTP_SERVER]; 			/// Array where is saved server NTP to get UTC time (format as example in Definitions.h)
+//  uint8_t calendar[10];               			/// Array for saving all calendar parameters get from NTC server
+//  uint8_t idSIM[30];                 			 /// Array where is saved ID from SIMcard
+uint8_t openFastConnection=0;      			 /// by default to 0, it is used for doing a quick connection when it is needed to call the connect function again
+uint8_t setTransparentConnection=1;  			/// 1 for transparent connection, 0 for non-transparent. Then all data flow is command AT+ data
+//  uint8_t GPRSbuffer[SIZE_GPRS_BUFFER];			 /// received buffer with data from GPRS
+uint8_t dataByteBufferIRQ;  					/// Last received byte from GPRS
+//uint16_t GPRSBufferReceivedBytes;     		/// Number of received data from GPRS after a cleanningReceptionBuffer() is called
+//uint16_t indexGPRSBufferReceived;
+//uint16_t indexPickingReceivedBytes=0;
+uint8_t connected=0;
+//unsigned char buffer2[SIZE_GPRS_BUFFER];
+int32_t quantityReceived=0;
+/* USER CODE END 0 */
 
+int main(void)
+{
+	/* Added by Owais */
+	EnumCQErrors enCQErr;
+	uint8_t* ptruintMsg;
+	uint8_t eventCode;
+	StrI2CDeviceInfo i2cDevices[2];
+	uint32_t cnt_EventsRx = 0;
+	uint32_t cnt_Event_FF = 0;
+	uint32_t cnt_Event_WU = 0;
+	uint32_t cnt_Event_SL = 0;
+	uint32_t cnt_Event_MD = 0;
+	uint32_t cnt_Event_PD = 0;
 
-int		conti = 0; // provisional
-/////////////////////////////////////////////////////////////////////////////////////////////
-//	Open connection (from scratch OR over a established connection)
-//		if mode param is 0, open from scratch, else reopen on new host and/or credentials
-//
-//	The function doesn't take any parameters (get all of then from the Context)
-//	Makes all calling the transport and broker functions
-//
-//    First: try to connect using the 'default' broker parameters
-//              (if succeeds, stores those default values as 'last successful connection'
-//    If that fails, makes a second try with the 'last successful connection' (contingency)
-/////////////////////////////////////////////////////////////////////////////////////////////
-int	OpenConnection(unsigned int mode){
+	i2cDevices[0].StartAddress = 0;
+	i2cDevices[0].DeviceAddress = LSM6DSM_ADDR_LOW;
+	i2cDevices[0].Is8BitRegisters = true;
+	i2cDevices[0].ByteCount = 0x6B + 1; /* Total registers */
 
-	int		hconn;
-	int 	try = 0; // 1 default, 2 contingency
-//	char 	*kind = "";
-	int 	rc;
-
-
-
-
-
-	// First, try with default broker parameters
-	char	*h = GetVariable("IP");
-	unsigned int p = atoi(GetVariable("PORT"));
-	int	s = atoi(GetVariable("SEC"));
-	char	*us = GetVariable("USER");
-	char	*pw = GetVariable("PSWD");
-	char	*apn = GetVariable("APN");
-
-
-	tc0 = HAL_GetTick();
-
-	if (mode == 0)
-		hconn = transport_open(h, p, s, apn);
-	else
-		hconn = transport_reopen_short(h, p, s);
-
- 	if (hconn > 0) {
-		tc1 = HAL_GetTick();
- 		rc = MqttConnectB(hconn, us, pw);
- 		if (rc > 0){
-//			kind = "DEFAULT";
- 			conti = 0;
- 		}
- 		else {
- 			transport_close(hconn);
- 			hconn = 0;
-
- 		}
- 	}
-	if (hconn <= 0)  {
-
-		// try with Contingency
- 		h = GetVariable("LIP");
- 		p = atoi(GetVariable("LPORT"));
- 		s = atoi(GetVariable("LSEC"));
- 		us = GetVariable("LUSER");
- 		pw = GetVariable("LPSWD");
- 		apn = GetVariable("LAPN");
- 		if (h && p && apn) {
-			if (mode == 0)
-				hconn = transport_open(h, p, s, apn);
-			else
-				hconn = transport_reopen_short(h, p, s);
-			if (hconn > 0 ) {
-				tc1 = HAL_GetTick();
-				rc = MqttConnectB(hconn, us, pw);
-				if (rc > 0){
-	//	 			kind = "CONTINGENCY";
-					conti = 1;
-				}
-				else {
-					transport_close(hconn);
-					hconn = 0;
-				}
-			}
- 		}
-	}
-	if (hconn > 0) {
-		// Update Last success connection vars
-		char txt1[8];
-		char txt2[8];
-		SetVariable("LIP", h);
-		itoa(p, txt1, 10);
-		SetVariable("LPORT", txt1);
-		SetVariable("LUSER", us);
-		SetVariable("LPSWD", pw);
-		itoa(s, txt2, 10);
-		SetVariable("LSEC", txt2);
-		SetVariable("LAPN", apn);
-
-
-		SetVariable("ID", GetVariable("IMEI"));
-
-
-		tc2 = HAL_GetTick();
-
-		SaveConnParams(); // SAVE ALL (but only LAST CONNECT GROUP need to be stored)
-
-//		char *id = GetVariable("ID");
-//		char *myip = GetVariable("LOCALIP");
-//		char *sim = GetVariable("IDSIM");
-
-//		tprintf (hconn, "%s %s (%s, %s by %s) to %s:%d as IP %s and SIM %s.", id, mode?"RECONNECTED":"CONNECT", kind, (s)?"TLS":"TCP", (bydma?"DMA":"IRQ"), h, p, myip, sim);
-//		tprintf (hconn, "Times elapsed %ld, %ld, %ld (%ld + %ld = %ld)", t0, t1, t2 , (t1-t0), (t2-t1), (t2-t0));
-	}
-	return hconn;
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////
-//	A pair of helper functions to
-//	Open a "full" connection (from scratch)
-//	Make a "short" reconnection (from an existing connection))
-/////////////////////////////////////////////////////////////////////////////////////////////
-int	OpenNewConnection(){
-	return OpenConnection(0);
-}
-
-int	ShortReconnection(){
-	return OpenConnection(1);
-}
-
- int	COMM_Init(){
- 	 int hconn = OpenNewConnection();
-// 	 SetVariable("ID", id0);
- 	 if (hconn > 0){
-		int rc;
-
-		char *host = GetVariable("LIP");
-		char *port = GetVariable("LPORT");
-		char *apn = GetVariable("LAPN");
-		char *myip = GetVariable("LOCALIP");
-		char *sim = GetVariable("IDSIM");
-		char *imei = GetVariable("IMEI");
-
-		char *id = GetVariable("ID");
-
-		// allocate the topic strings.
-		// Test before to do it only once!!!
-		if (!topicpub){
-			topicpub = malloc (strlen(topicroot) + 1 + strlen(topicpub0) + 1);
-			sprintf (topicpub, "%s/%s", topicroot, topicpub0);
-		}
-		if (!topicsub){
-			topicsub= malloc (strlen(topicroot) + 1 + strlen (topicsub0) + 1 + strlen(id) + 1);
-			sprintf (topicsub, "%s/%s/%s", topicroot, topicsub0, id);
-		}
-		if (!topicbrcast){
-			topicbrcast = malloc (strlen(topicroot) + 1 + strlen (topicsub0) + 1 + strlen (broadcast) + 1);
-			sprintf (topicbrcast, "%s/%s/%s", topicroot, topicsub0, broadcast);
-		}
-		if (!topictr){
-			topictr = malloc (strlen(topicroot) + 1 + strlen (topictr0) + 1 + strlen (id) + 1);
-			sprintf (topictr, "%s/%s/%s", topicroot, topictr0, id);
-		}
-
-		//		tprintf (hconn, "%s %s (%s, %s by %s) to %s:%d as IP %s and SIM %s.", id, mode?"RECONNECTED":"CONNECT", kind, (s)?"TLS":"TCP", (bydma?"DMA":"IRQ"), h, p, myip, sim);
-		//		tprintf (hconn, "Times elapsed %ld, %ld, %ld (%ld + %ld = %ld)", t0, t1, t2 , (t1-t0), (t2-t1), (t2-t0));
-		tprintf (hconn, "%s CONNECTED (%s %s) to %s:%s by %s as IP %s, IMEI %s and SIM %s.\n", id, conti?"CONTINGENCY":"DEFAULT", (bydma?"DMA":"IRQ"), host, port, apn, myip, imei, sim);
-
-		do {
-			 rc = MqttSubscribe(hconn, topicsub) && MqttSubscribe(hconn, topicbrcast);
-		 } while (rc < 1);
-		 tprintf (hconn, "Successfully subscripted to #%s#, #%s#", topicsub, topicbrcast);
- 	 }
-	 return hconn;
-}
-
-
-int	SHORTNEWCONN(){
-	int rc;
-	int	hconn;
-
-	if (1)
-		SaveConnParams(); // (maybe a is for 5;) Save (but only DEFAULT GROUP need to be stored)
-						  //  to be improved in a future
-
-#ifdef DEBUG
-		tprintf (hmqtt, "Go to SHORT DISCONNECT from this server and connect to %s.\nBye", GetVariable("IP"));
-		HAL_Delay(2000); // give trace time to arrive before disconnect
-#endif
-	rc = MqttDisconnectB(hmqtt);
-
-	hconn = ShortReconnection();  // "short" reopen,
-	if (hconn > 0){
-		char *host = GetVariable("LIP");
-		char *port = GetVariable("LPORT");
-		char *id = GetVariable("ID");
-		char *myip = GetVariable("LOCALIP");
-
-		tprintf (hconn, "%s SHORT RECONNECT (%s %s) to %s:%s as IP %s .\n", id, conti?"CONTINGENCY":"DEFAULT", (bydma?"DMA":"IRQ"), host, port, myip);
-
-		 do {
-			 rc = MqttSubscribe(hconn, topicsub) && MqttSubscribe(hconn, topicbrcast);
-		 } while (rc < 1);
-		 tprintf (hconn, "Successfully subscripted to #%s#, #%s#", topicsub, topicbrcast);
-	}
-	return hconn;
-}
-
-int	FULLNEWCONN(){
-	int hrec;
-	do {
-		hrec = NEWCONN(0);
-	} while (hrec <= 0);
-	tprintf (hmqtt, "Reconnection Times (%ld TCP + %ld MQTT = %ld TOTAL)\n", (tc1-tc0), (tc2-tc1), (tc2-tc0));
-
-	hmqtt = hrec;
-	return hmqtt;
-}
-
-int	FULLNEWCONNOLD(){
-	int rc;
-	int	hconn;
-
-	if (1)
-		SaveConnParams(); // (maybe a is for 5;) Save (but only DEFAULT GROUP need to be stored)
-						  //  to be improved in a future
-
-#ifdef DEBUG
-		tprintf (hmqtt, "Go to LONG DISCONNECT from this server and connect to %s.\nBye", GetVariable("IP"));
-		HAL_Delay(2000); // give trace time to arrive before disconnect
-#endif
-	rc = MqttDisconnect(hmqtt);  // This performs FULL disconnection
-
-	hconn = OpenNewConnection();
-//	hconn = FullReconnection();  // "short" reopen,
-	if (hconn > 0){
-		char *id = GetVariable("ID");
-		char *host = GetVariable("LIP");
-		char *port = GetVariable("LPORT");
-		char *apn = GetVariable("LAPN");
-		char *myip = GetVariable("LOCALIP");
-
-		tprintf (hconn, "%s LONG RECONNECT (%s %s) to %s:%s by %s as IP %s .\n", id, conti?"CONTINGENCY":"DEFAULT", (bydma?"DMA":"IRQ"), host, port, apn, myip);
-
-		 do {
-			 rc = MqttSubscribe(hconn, topicsub) && MqttSubscribe(hconn, topicbrcast);
-		 } while (rc < 1);
-		 tprintf (hconn, "Successfully subscripted to #%s#, #%s#", topicsub, topicbrcast);
-	}
-	return hconn;
-}
-
-
-int	NEWCONN(int modo){
-	int rc;
-	int	hconn;
-
-	if (1)
-		SaveConnParams(); // (maybe a is for 5;) Save (but only DEFAULT GROUP need to be stored)
-						  //  to be improved in a future
-
-#ifdef DEBUG
-	tprintf (hmqtt, "Go to %s DISCONNECT from this server and connect to %s:%s.\nBye", modo?"SHORT":"FULL", GetVariable("IP"), GetVariable("PORT"));
-		HAL_Delay(2000); // give trace time to arrive before disconnect
-#endif
-	// This performs FULL disconnection
-	rc = MqttDisconnectB(hmqtt);
-
-//	if (modo == 0)
-//		transport_close(hmqtt);
-
-	if (modo)
-		hconn = OpenConnection(1);   // "short", reopen
-	else
-		hconn = OpenConnection(0);  // "full" open,
-
-	if (hconn > 0){
-		char *id = GetVariable("ID");
-		char *host = GetVariable("LIP");
-		char *port = GetVariable("LPORT");
-		char *apn = GetVariable("LAPN");
-		char *myip = GetVariable("LOCALIP");
-
-		tprintf (hconn, "%s %s RECONNECT (%s %s) to %s:%s by %s as IP %s .\n", id, modo?"SHORT":"FULL", conti?"CONTINGENCY":"DEFAULT", (bydma?"DMA":"IRQ"), host, port, apn, myip);
-
-		 do {
-			 rc = MqttSubscribe(hconn, topicsub) && MqttSubscribe(hconn, topicbrcast);
-		 } while (rc < 1);
-		 tprintf (hconn, "Successfully subscripted to #%s#, #%s#", topicsub, topicbrcast);
-	}
-	return hconn;
-}
-
-int rearm_stored(){
-	SetPeriodics();
-}
-
-
-
-int daily_rearm(void) {
-	rearm_stored();
-}
-
-
-int main0(){
-	return main2();
-}
-int modem_init = 0;
-int main2(void) {
-
-	int	x = 1;
-	int y = 2;
-	x = x +1;
-	x = x +1;
-	x = x +1;
-	x = x +1;
-	x = x +1;
-	x = x +1;
-	x = x +1;
-	x = x +1;
-	x = x +1;
-	y = y + x;
-	y = y + x;
-	y = y + x;
-	y = y + x;
-//	HAL_Init();
-//	HAL_Delay(3000);
-	return main0();
-}
-/**/
-
-int main(void) {
-	int		ntries = 0;		// Counter of the number of attempts to connect
-	int		lomio = 1;
-	char	strint[8];		// string to convert integers to text
-	int	a = 1;
-	int b = 2;
-	uint8_t dataFromFlash[128];
-	int okFlash=0;
-	a = a +1;
-	a = a +1;
-	a = a +1;
-	a = a +1;
-	a = a +1;
-	a = a +1;
-	a = a +1;
-	a = a +1;
-	a = a +1;
-	b = b + a;
-	b = b + a;
-	b = b + a;
-	b = b + a;
-
-
+	i2cDevices[0].StartAddress = 0;
+	i2cDevices[0].DeviceAddress = PCAL6416A_ADDR_LOW;
+	i2cDevices[0].Is8BitRegisters = true;
+	i2cDevices[0].ByteCount = 8; /* read first eight registers only */
 
 	/* MCU Configuration----------------------------------------------------------*/
 
 	/* Reset of all peripherals, Initializes the Flash interface and the Systick. */
 	HAL_Init();
 
-
 	/* Configure the system clock */
 	SystemClock_Config();
-
 
 	/* USER CODE BEGIN SysInit */
 
@@ -529,324 +191,125 @@ int main(void) {
 
 	/* Initialize all configured peripherals */
 	MX_GPIO_Init();
+	//HAL_GPIO_WritePin(GPIOB, GPIO_PIN_7, GPIO_PIN_SET);
+
 	greenON;
 	MX_ADC1_Init();
 	//MX_TIM3_Init();// francis
-	 MX_TIM7_Init();
+	MX_TIM7_Init();
 	//MX_USART2_UART_Init();
 	MX_USART6_UART_Init();
 	//MX_IWDG_Init();
 
 	//MX_I2C2_Init();
 	initializePWM();
-	//dimming(50);
-	//dimming(70);
-	//dimming(100);
 	/* USER CODE BEGIN 2 */
+	bool bI2C1Res = Config_I2C1(&hi2c1, 400000, false, i2cDevices, sizeof(i2cDevices)/sizeof(i2cDevices[0]));
+
+	if(bI2C1Res == false)
+	{
+		_Error_Handler(__FILE__, __LINE__);
+	}
+
 	HAL_Delay(30);
 
+	__enable_irq();
 
-//	memcpy(APN,const_APN,strlen(const_APN));
-//	memcpy(IPPORT,const_MAIN_SERVER,strlen(const_MAIN_SERVER));
-//	memcpy(SERVER_NTP,const_SERVER_NTP,strlen(const_SERVER_NTP));
-
-
-	HAL_TIM_Base_Start_IT(&htim7); 	//Activate IRQ for Timer7
-	if (WDT_ENABLED==1) {
-			 MX_IWDG_Init();
-			__HAL_IWDG_START(&hiwdg); //no se inicializar watchdog, se deshabilita para debug
-			  HAL_IWDG_Refresh(&hiwdg);
-	}
-
-
-	if (0) /// testing writing data at ending of microcontroller. (page 127).
-
+	/* Initialize TSL2561 sensor, added 12-May-2018 */
+	/*tsl2561_t dev_tsl2561;
+	if( tsl2561_init(&dev_tsl2561, &hi2c1, TSL2561_ADDR_FLOAT, TSL2561_GAIN_16X, TSL2561_INTEGRATIONTIME_13MS) != TSL2561_OK)
 	{
-		okFlash=MIC_Flash_Memory_Read(dataFromFlash, 66);
-		//okFlash=MIC_Flash_Memory_Write("En un lugar de la mancha de cuyo nombre no quiero acordarme...", 62);
-		//okFlash=MIC_Flash_Memory_Read(dataFromFlash, 66);
+		_Error_Handler(__FILE__, __LINE__);
+	}*/
 
-	}
+	PCAL6416A_SetupRefs(&strPCAL6416A, &hi2c1, PCAL6416A_ADDR_LOW);
+	/*configure port 0.0 as output */
+	bool bpc1 = PCAL6416A_MakePinOutput(&strPCAL6416A, 0, 0x01);
+	/*set 0.0, AG_CS as HIGH */
+	bool bpc2 = PCAL6416A_WritePinValue(&strPCAL6416A, 0, 0x01, true);
+	bool bpc3 = PCAL6416A_MakePinInput(&strPCAL6416A, 1, 0x10); /* Pin 1.4 should be input */
+	bool bpc4 = PCAL6416A_EnableIntOnPin(&strPCAL6416A, 1, 0x10); /* Pin 1.4 rising edge (default) set as an interrupt source */
 
+	LSM6DS3_SetupRefs(&strLSMDev, &hi2c1, LSM6DSM_ADDR_LOW);
+	bool b1 = LSM6DS3_Config(&strLSMDev, En_Mode_Both, En_Pow_HIGHPERF, 1, 2);
+	bool b2 = LSM6DS3_Set_Events(&strLSMDev, true, true, true, true, true);
 
-	if (bydma) { // BYDMA
-			DataBuffer	= CircularBuffer (256, &hdma_usart6_rx);
-			MX_DMA_Init();					// set DMA clock and priorities
-			HAL_UART_DMAStop(&huart6);
-	}
-	else {
-		DataBuffer	= CircularBuffer (256, NULL);
-	}
-	uint32_t ta, tb;
+	while (1)
+	{
+		/* Process LSM6DS3 events messages from event queue */
+		while(true)
+		{
+			ptruintMsg = LSM6DS3_Get_Event(&enCQErr);
+			eventCode = *ptruintMsg;
 
-	if (1) {
-		int rc;
-		int n = 0;
-		ta = HAL_GetTick();
-		// pretrace ("INFO Init modem on start\n", n);
-		do {
-			rc = Modem_Init();
-			n++;
-		} while (rc != M95_OK);
-		tb = HAL_GetTick();
-		modem_init = 1;
+			if(enCQErr == CQ_ERROR_OK)
+			{
+				cnt_EventsRx++;
 
-	}
+				if(eventCode & MASK_EVENT_FF)
+				{
+					/* free fall event was detected */
+					cnt_Event_FF++;
+				}
 
-	if (bydma) {  // BYDMA
-		int tries = 0;
-		HAL_StatusTypeDef rc;
-		do {
-			rc = HAL_UART_Receive_DMA(&huart6, DataBuffer->buffer, DataBuffer->size); // starts DMA reception
-			HAL_Delay(200);
-			tries++;
-		} while  (rc != HAL_OK);
-	}
-	else {
-		HAL_UART_Receive_IT(&huart6, &dataByteBufferIRQ, 1); // Enabling IRQ
-	}
+				if(eventCode & MASK_EVENT_WU)
+				{
+					/* wake up event detected */
+					cnt_Event_WU++;
+				}
 
-	// relayActivation(GPIOX2_GPIO_Port,GPIOX2_Pin);
+				if(eventCode & MASK_EVENT_SL)
+				{
+					/* sleep event detected */
+					cnt_Event_SL++;
+				}
 
+				if(eventCode & MASK_EVENT_MD)
+				{
+					/* motion detect event detected */
+					cnt_Event_MD++;
+				}
 
-	// Create de Variable's Context
-	CreateContext();
+				if(eventCode & MASK_EVENT_PD)
+				{
+					/* step event detected */
+					cnt_Event_PD++;
+				}
 
+				/* Read all the device registers which we are interested in for all devices */
+				bool readI2C = Read_I2C1_DevicesInterest(&hi2c1);
 
-	if (1) {
-		// Recover connection parameteres from FLASH (really ALLs af them)
-		RecConnParams();
-	}
-#ifdef DEBUG
-	////  Prevalence of locale's connection parameters, if there are
-	if (host){
-			SetVariable("IP",host);
-		if (port){
-			char	sport[8];
-			itoa(port, sport, 10);
-			SetVariable("PORT", sport);
-		}
-		if (user)
-			SetVariable( "USER",user);
-		if (password)
-			SetVariable("PSWD", password);
-
-		char ssec[8];
-		itoa(security, ssec, 10);
-		SetVariable("SEC", ssec);
-
-		if (const_APN)
-			SetVariable("APN", const_APN);
-	}
-	if (0) {
-		
-
-
-		if (updfw_protocol)
-			SetVariable ("UPDFW_PROTO", updfw_protocol);
-
-		if (updfw_server)
-			SetVariable ("UPDFW_HOST", updfw_server);
-
-//		int	updfw_port 				= 0;
-		if (updfw_route)
-			SetVariable("UPDFW_ROUTE", updfw_route);
-
-		if (updfw_name)
-			SetVariable("UPDFW_NAME", updfw_name);
-
-		if (updfw_user)
-			SetVariable("UPDFW_USER", updfw_user);
-
-		if (updfw_password)
-			SetVariable("UPDFW_PSWD", updfw_password);
-
-
-		if (gpio_status)
-			SetVariable ("GPIO", gpio_status);
-
-
-		itoa(PWM_status, strint, 10);
-		SetVariable("PWM", strint);
-
-		itoa(updfw_port, strint, 10);
-		SetVariable("UPDFW_PORT", strint);
-
-	}
-
-
-#endif
-
-
-	// Set the version compilation signature
-	if (fw_version)
-		SetVariable("FWVERSION",fw_version);
-
-	itoa(update_firmware, strint, 10);
-	SetVariable("UPDFW", strint);
-
-	itoa(update_firmware_counter, strint, 10);
-	SetVariable("UPDFW_COUNT", strint);
-
-	// Read the messages's metadata
-	ReadMetadata("", "");
-
-
-
-	do {
-		hmqtt = COMM_Init();
-		ntries++;
-	} while (hmqtt <= 0);
-	tprintf (hmqtt, "Connection Times (%ld TCP + %ld MQTT = %ld TOTAL)\n", (tc1-tc0), (tc2-tc1), (tc2-tc0));
-	if (hmqtt) {
-			extern char	pretrbuf[];
-			long lastget = GetTimeStamp();
-
-			int rc = 1;
-			int cnomssg = 0;
-			greenOFF;
-			blueON;
-			rearm_stored();
-		//	DoAt(daily_rearm, 18, 18, 59);
-			DoAt(daily_rearm, 24, 00, 00);
-#ifdef DEBUG
-//			tprintf (hmqtt, "Modem takes %ld msec to init", (tb -ta));
-			rc = tprintf (hmqtt, "Go to the loop after %d tries(%s)!!", ntries, strDateTime());
-			if (strlen(pretrbuf)){
-				tprintf (hmqtt, "PRE is %s", pretrbuf);
+				if(readI2C)
+				{
+					/* We have two devices at index 0 and 1 */
+					/* These structures have a byte array which will have the register values designed in initialization */
+					StrI2CDeviceInfo* str1 = Get_DeviceInterestReference(0);
+					StrI2CDeviceInfo* str2 = Get_DeviceInterestReference(1);
+				}
 			}
-
-#endif
-			 /* Main loop only if we are connected and subscribed.
-				Inside loop one Ping packet must be sent in order to manage the keep alive
-				before expiration time of client elapses. (here, the expiration time is  'data.keepAliveInterval = 300', 300 seconds.
-			 */
-
-			  /* Infinite loop */
-			  /* USER CODE BEGIN WHILE */
-
-			RecAppParams();
-
-			while (1) {
-				if  (rc > 0) {
-					char 	buffer[256];
-					char *mssg = NULL;
-					if (WDT_ENABLED==1) HAL_IWDG_Refresh(&hiwdg);
-//						tprintf (hmqtt, "Going to Poll for incoming commands...!!");
-		    	 		if (1)
-		    	 		  	mssg = MqttGetMessage(hmqtt, buffer, 256);
-		    	 		else {
-		    	 		  	mssg = GetLocalMessage(hmqtt, buffer, 256);
-		    	 		}
-//						tprintf (hmqtt, "After polling...!!");
-
-						if (mssg) {
-								cnomssg = 0;
-								lastget = GetTimeStamp();
-#ifdef DEBUG
-								tprintf (hmqtt , "Incoming message #%s#", mssg);
-#endif
-								char *out = ProcessMessage (mssg);
-								if (out) {
-									// tprintf (hmqtt , "Message replay is:\n%s", out);
-									rc = MqttPutMessage(hmqtt, topicpub, out);
-//									tprintf (hmqtt , "Reply %s published into %s", out, topicpub);
-
-								}
-						}
-						else { // NO MSSG
-#ifdef DEBUG
-						//		tprintf (hmqtt, "No mssg in queue");
-#endif
-								Schedule();
-								if (GetTimeStamp() - lastget > TIMEPING){
-									lastget = GetTimeStamp();
-//									tprintf (hmqtt, "BEFORE sending Ping...!!");
-									rc = MqttPing(hmqtt);
-//									tprintf (hmqtt, "AFTER sending Ping...(%d)!!", nirqs);
-									if (rc < 1)  // second try
-										rc = MqttPing(hmqtt);
-									if (rc < 1) {
-										//  It seems we are'nt receiving anymore
-#ifdef DEBUG
-										tprintf (hmqtt, "Sended Ping  getting %d instead of PINGRESP (%d irqs)", rc, nirqs);
-
-										rc = MqttPing(hmqtt);
-										rc = 1;
-#endif
-
-										if (1) {
-#ifdef DEBUG
-											tprintf (hmqtt, "Ready  to reconnection or reboot!!! ");
-#endif
-
-											ntries = 0;
-											do {
-												hmqtt = FULLNEWCONN();
-												ntries++;
-											} while (hmqtt <= 0);
-#ifdef DEBUG
-											rc = tprintf (hmqtt, "earing recovered after %d tries!!", ntries);
-#endif
-										}
-									}
-									else {
-#ifdef DEBUG
-										rc = tprintf (hmqtt, "Sended Ping getting %d (%s)", rc, strDateTime());
-#endif
-									}
-									cnomssg = 0;
-								}
-
-						}
-			      } //
-			      else {
-#ifdef DEBUG
-			    	  tprintf (hmqtt, "RC invalido %d", rc);
-#endif
-			    	  ntries = 0;
-			    	  do {
-			    			hmqtt = COMM_Init();
-			    			ntries++;
-			    	  } while (hmqtt <= 0);
-#ifdef DEBUG
-			    	  tprintf (hmqtt, "RECONNECTED because of communication breakdown!!!!");
-#endif
-			      }
-
-			 }
-				 //  not connected ... retry or exit?
+			else
+			{
+				break;
+			}
 		}
 
+	} /* main while loop */
 
+	/* USER CODE END 2 */
 
-
-
-
-  /* USER CODE END 2 */
-
-  /* Infinite loop */
-  /* USER CODE BEGIN WHILE */
-
+	/* Infinite loop */
+	/* USER CODE BEGIN WHILE */
 }
 
-void	EnableRXGPRG(){
-	if(!bydma)
-		HAL_UART_Receive_IT(&huart6, &dataByteBufferIRQ, 1); // Enabling IRQ
+/* Call back for all GPIO EXTI type interrupts */
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+{
+  if(GPIO_Pin == GPIO_PIN_2) /* Line 2 i.e. PC0 */
+  {
+	  /* it means that GPIO expander /INT1 called */
+	  ProcessISR(&strLSMDev);
+  }
 }
-
-
-int	Publish(char *message) {
-	int rc = MqttPutMessage(hmqtt, topicpub, message);
-	return rc;
-}
-
-int	Log(char *message) {
-	int rc = MqttPutMessage(hmqtt, topictr, message);
-	return rc;
-}
-
-
 
 /** System Clock Configuration
 */
@@ -1087,10 +550,9 @@ static void MX_GPIO_Init(void)
                           |emerg_3G_Pin|pwrKey_3G_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0|GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_10
+  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_10
                           |GPIO_PIN_11|Relay1_Pin|GPIO_PIN_14|GPIO_PIN_15
-                          |GPIO_PIN_3|GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_6
-                          |GPIO_PIN_7|GPIO_PIN_8|GPIO_PIN_9, GPIO_PIN_RESET);
+                          |GPIO_PIN_3|GPIO_PIN_4|GPIO_PIN_5, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOD, GPIO_PIN_2, GPIO_PIN_RESET);
@@ -1110,7 +572,7 @@ static void MX_GPIO_Init(void)
 
   /*Configure GPIO pins : PC3 PC4 PC5 PC8
                            PC10 PC11 PC12 */
-  GPIO_InitStruct.Pin = GPIO_PIN_3|GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_8
+  GPIO_InitStruct.Pin =    GPIO_PIN_3|GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_8
                           |GPIO_PIN_10|GPIO_PIN_11|GPIO_PIN_12;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
@@ -1119,25 +581,30 @@ static void MX_GPIO_Init(void)
 
   /*Configure GPIO pins : PA0 PA4 PA5 PA6
                            PA7 txDBG_3G_Pin PA9 PA10 */
-  GPIO_InitStruct.Pin = GPIO_PIN_0|GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_6
+  GPIO_InitStruct.Pin =    GPIO_PIN_0|GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_6
                           |GPIO_PIN_7|txDBG_3G_Pin|GPIO_PIN_9|GPIO_PIN_10;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : PB0 PB1 PB2 PB10
+  /*Configure GPIO pins :  PB1 PB2 PB10
                            PB11 Relay1_Pin PB14 PB15
                            PB3 PB4 PB5 PB6
-                           PB7 PB8 PB9 */
-  GPIO_InitStruct.Pin = GPIO_PIN_0|GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_10
+                           PB7*/
+  GPIO_InitStruct.Pin =    GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_10
                           |GPIO_PIN_11|Relay1_Pin|GPIO_PIN_14|GPIO_PIN_15
-                          |GPIO_PIN_3|GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_6
-                          |GPIO_PIN_7|GPIO_PIN_8|GPIO_PIN_9;
+                          |GPIO_PIN_3|GPIO_PIN_4|GPIO_PIN_5;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+  /*GPIO_InitStruct.Pin =    GPIO_PIN_7;
+    GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_OD;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+    HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);*/
 
   /*Configure GPIO pin : PWM_sim_Pin */
   GPIO_InitStruct.Pin = PWM_sim_Pin;
@@ -1165,15 +632,28 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
 
+  /*Configure GPIO pin : PB0 */
+  /* INT2 on LSM6DS3 cannot be used */
+  /*GPIO_InitStruct.Pin = GPIO_PIN_0;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);*/
+
+  /*Configure GPIO pin : PC0 */
+  GPIO_InitStruct.Pin = GPIO_PIN_0;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+
+  /* EXTI interrupt init*/
+  HAL_NVIC_SetPriority(EXTI0_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI0_IRQn);
 }
 
 
 /* USER CODE BEGIN 4 */
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
-
-
-
 
   if (huart->Instance==GPRS_UART.Instance)
  {
@@ -1205,13 +685,6 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 	  		  HAL_UART_Receive_IT(huart,&dataByteBufferIRQ,1);
 	  }
   }
-
-
-
-
-
-
-
 }
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
