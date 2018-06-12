@@ -231,7 +231,7 @@ int main(void)
 	bool bpc4 = PCAL6416A_EnableIntOnPin(&strPCAL6416A, 1, 0x10); /* Pin 1.4 rising edge (default) set as an interrupt source */
 
 	LSM6DS3_SetupRefs(&strLSMDev, &hi2c1, LSM6DSM_ADDR_LOW);
-	bool b1 = LSM6DS3_Config(&strLSMDev, En_Mode_Both, En_Pow_HIGHPERF, 1, 2);
+	bool b1 = LSM6DS3_Config(&strLSMDev, En_Mode_Both, En_Pow_HIGHPERF_416Hz, 0, 2);
 	bool b2 = LSM6DS3_Set_Events(&strLSMDev, true, true, true, true, true);
 
 	while (1)

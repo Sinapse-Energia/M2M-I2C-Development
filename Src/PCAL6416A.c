@@ -196,7 +196,7 @@ bool PCAL6416A_EnableIntOnPin(StrPCAL6416A* dev, uint8_t banknumber, uint8_t bit
 		halres = HAL_I2C_Mem_Read(dev->i2c_dev, dev->addr, PCAL6416A_REG_InterruptMask0 + banknumber, I2C_MEMADD_SIZE_8BIT, buffer, 1, 100);
 		/* clear bit(s) at bit-mask, do read modify write operation */
 		buffer[0] = buffer[0] & ~bitmask;
-		halres = HAL_I2C_Mem_Write(dev->i2c_dev, dev->addr, PCAL6416A_REG_InterruptMask1 + banknumber, I2C_MEMADD_SIZE_8BIT, buffer, 1, 100);
+		halres = HAL_I2C_Mem_Write(dev->i2c_dev, dev->addr, PCAL6416A_REG_InterruptMask0 + banknumber, I2C_MEMADD_SIZE_8BIT, buffer, 1, 100);
 	}
 
 	if(halres == HAL_OK)

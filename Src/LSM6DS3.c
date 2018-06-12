@@ -124,7 +124,7 @@ bool LSM6DS3_Set_Events(StrLSM6DS3* dev, bool ff, bool wu, bool sl, bool md, boo
 
 	if(ff || wu || sl || md || sd)
 	{
-		if((dev->enOPMode == En_Mode_ACC || dev->enOPMode == En_Mode_Both) && (dev->enPowerMode == En_Pow_HIGHPERF) )
+		if((dev->enOPMode == En_Mode_ACC || dev->enOPMode == En_Mode_Both) && (dev->enPowerMode >= En_Pow_HIGHPERF_416Hz) )
 		{
 			bResult = true;
 		}

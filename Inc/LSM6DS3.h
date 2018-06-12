@@ -128,9 +128,16 @@ typedef enum
 typedef enum
 {
 	En_Pow_POWERDOWN = 0,
-	En_Pow_LOWPOWER = 2,
-	En_Pow_NORMAL = 5,
-	En_Pow_HIGHPERF = 10
+	En_Pow_LOWPOWER_12_5Hz = 1,
+	En_Pow_LOWPOWER_26Hz = 2,
+	En_Pow_LOWPOWER_52Hz = 3,
+	En_Pow_NORMAL_104Hz = 4,
+	En_Pow_NORMAL_208Hz = 5,
+	En_Pow_HIGHPERF_416Hz = 6,
+	En_Pow_HIGHPERF_833Hz = 7,
+	En_Pow_HIGHPERF_1666Hz = 8,
+	En_Pow_HIGHPERF_3333Hz = 9,
+	En_Pow_HIGHPERF_6666Hz = 10
 }EnumPowerMode; /* From table 53 */
 
 typedef struct
