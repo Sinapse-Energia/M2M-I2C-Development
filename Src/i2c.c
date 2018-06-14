@@ -41,35 +41,13 @@
 #include "i2c.h"
 
 /* USER CODE BEGIN 0 */
-StrI2CDeviceInfo StrDevices[MAX_DEVICES];
-uint8_t          CountDevices;
-uint32_t         bitrate_i2c;
+
 /* USER CODE END 0 */
 
 I2C_HandleTypeDef hi2c1;
 
-/* I2C1 init function */
-void MX_I2C1_Init(void)
-{
-  hi2c1.Instance = I2C1;
-  hi2c1.Init.ClockSpeed = bitrate_i2c;
-  hi2c1.Init.DutyCycle = I2C_DUTYCYCLE_2;
-  hi2c1.Init.OwnAddress1 = 0;
-  hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
-  hi2c1.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
-  hi2c1.Init.OwnAddress2 = 0;
-  hi2c1.Init.GeneralCallMode = I2C_GENERALCALL_DISABLE;
-  hi2c1.Init.NoStretchMode = I2C_NOSTRETCH_ENABLE;
-
-  if (HAL_I2C_Init(&hi2c1) != HAL_OK)
-  {
-    _Error_Handler(__FILE__, __LINE__);
-  }
-}
-
 void HAL_I2C_MspInit(I2C_HandleTypeDef* i2cHandle)
 {
-
   GPIO_InitTypeDef GPIO_InitStruct;
   if(i2cHandle->Instance==I2C1)
   {
@@ -122,7 +100,7 @@ void HAL_I2C_MspDeInit(I2C_HandleTypeDef* i2cHandle)
 /* USER CODE BEGIN 1 */
 
 /*****************************************************************************
- * Function name    : Config_I2C1
+ * Function name    : I2C_Config
  *    returns       : bool
  *    arg1          : I2C_HandleTypeDef *hi2c, the i2c interface hardware structure handle
  *    arg2          : uint32_t baudRate, the I2C bitrate
@@ -130,7 +108,7 @@ void HAL_I2C_MspDeInit(I2C_HandleTypeDef* i2cHandle)
  *    arg4          : StrI2CDeviceInfo* strDeviceInterest
  *    arg5          : uint8_t devCount, devices of interest to read count
  * Created by       : Owais
- * Date created     : 11-JUN-2018
+ * Date created     : 14-JUN-2018
  * Description      : Initialize I2C with a specific rate
  *
  *                    Assumptions:
@@ -142,90 +120,67 @@ void HAL_I2C_MspDeInit(I2C_HandleTypeDef* i2cHandle)
  *
  *                    Copies the device of interest information
  *****************************************************************************/
-bool Config_I2C1(I2C_HandleTypeDef *hi2c, uint32_t baudRate, bool bTenBitAddress, StrI2CDeviceInfo strDeviceInterest[], uint8_t devCount)
+bool I2C_Config(I2C_HandleTypeDef *hi2c, uint32_t baudRate, bool bTenBitAddress)
 {
 	bool result = false;
-	uint8_t loop;
-	bitrate_i2c = baudRate;
 
-	if(devCount <= MAX_DEVICES)
+	hi2c->Instance = I2C1;
+	hi2c->Init.ClockSpeed = baudRate;
+	hi2c->Init.DutyCycle = I2C_DUTYCYCLE_2;
+	hi2c->Init.OwnAddress1 = 0;
+
+	if (bTenBitAddress == false)
+		hi2c->Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
+	else
+		hi2c->Init.AddressingMode = I2C_ADDRESSINGMODE_10BIT;
+
+	hi2c->Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
+	hi2c->Init.OwnAddress2 = 0;
+	hi2c->Init.GeneralCallMode = I2C_GENERALCALL_DISABLE;
+	hi2c->Init.NoStretchMode = I2C_NOSTRETCH_ENABLE;
+
+	if (HAL_I2C_Init(hi2c) != HAL_OK)
 	{
-		hi2c->Instance = I2C1;
-		hi2c->Init.ClockSpeed = baudRate;
-		hi2c->Init.DutyCycle = I2C_DUTYCYCLE_2;
-		hi2c->Init.OwnAddress1 = 0;
-
-		if (bTenBitAddress == false)
-			hi2c->Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
-		else
-			hi2c->Init.AddressingMode = I2C_ADDRESSINGMODE_10BIT;
-
-		hi2c->Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
-		hi2c->Init.OwnAddress2 = 0;
-		hi2c->Init.GeneralCallMode = I2C_GENERALCALL_DISABLE;
-		hi2c->Init.NoStretchMode = I2C_NOSTRETCH_ENABLE;
-
-		if (HAL_I2C_Init(hi2c) != HAL_OK)
-		{
-			result = false;
-		}
-		else
-		{
-			result = true;
-		}
+		result = false;
 	}
-
-	/* copy the device information */
-	for(loop = 0; loop < devCount; loop++)
+	else
 	{
-		StrDevices[loop].DeviceAddress = strDeviceInterest[loop].DeviceAddress;
-		StrDevices[loop].StartAddress = strDeviceInterest[loop].StartAddress;
-		StrDevices[loop].Is8BitRegisters = strDeviceInterest[loop].Is8BitRegisters;
-
-		if(strDeviceInterest[loop].ByteCount < MAX_BYTES_TO_READ)
-		{
-			StrDevices[loop].ByteCount = strDeviceInterest[loop].ByteCount;
-		}
-		else
-		{
-			result = false;
-			break;
-		}
+		result = true;
 	}
 
 	return result;
 }
 /*****************************************************************************
- * Function name    : Write_I2C1_Message
+ * Function name    : I2C_Write_Raw_Message
  *    returns       : HAL_StatusTypeDef
  *    arg1          : I2C_HandleTypeDef *hi2c, the i2c interface hardware structure handle
  *    arg2          : uint16_t i2c_address, the slave address, 7 or bit specified in config function
  *    arg3          : uint8_t bytes[], the byte array to send
  *    arg4          : uint32_t byteCount, the byte count to transmit
  * Created by       : Owais
- * Date created     : 11-JUN-2018
- * Description      : Writes an array of bytes to an I2C device
+ * Date created     : 14-JUN-2018
+ * Description      : Writes an array of bytes to an I2C device, not assuming any register addresses
  * Notes            :
  *****************************************************************************/
-HAL_StatusTypeDef Write_I2C1_Message(I2C_HandleTypeDef *hi2c, uint16_t i2c_address, uint8_t bytes[], uint32_t byteCount)
+HAL_StatusTypeDef I2C_Write_Raw_Message(I2C_HandleTypeDef *hi2c, uint16_t i2c_address, uint8_t bytes[], uint32_t byteCount)
 {
 	HAL_StatusTypeDef halres;
-	halres = HAL_I2C_Master_Transmit(hi2c, i2c_address, bytes, byteCount, 500);
+	halres = HAL_I2C_Master_Transmit(hi2c, i2c_address, bytes, byteCount, TIMEOUT_WRITE_DEFAULT);
 	return halres;
 }
 /*****************************************************************************
- * Function name    : Write_I2C1_Register
+ * Function name    : I2C_Write_Reg_Device_ByteArray
  *    returns       : HAL_StatusTypeDef
  *    arg1          : I2C_HandleTypeDef *hi2c, the i2c interface hardware structure handle
  *    arg2          : StrI2CDeviceInfo* strDeviceInterest, device of interest details to use when transmitting
  *    arg3          : uint8_t bytes[], the byte array to send
  *    arg4          : uint32_t byteCount, the byte count to transmit
  * Created by       : Owais
- * Date created     : 11-JUN-2018
+ * Date created     : 14-JUN-2018
  * Description      : Writes to a starting register address on a specific i2c device
  * Notes            :
  *****************************************************************************/
-HAL_StatusTypeDef Write_I2C1_Register(I2C_HandleTypeDef *hi2c, StrI2CDeviceInfo* strDeviceInterest, uint8_t bytes[], uint32_t byteCount)
+HAL_StatusTypeDef I2C_Write_Reg_Device_ByteArray(I2C_HandleTypeDef *hi2c, StrI2CDeviceInfo* strDeviceInterest, uint8_t bytes[], uint32_t byteCount)
 {
 	HAL_StatusTypeDef halres;
 	uint32_t memSizeControlWord;
@@ -236,44 +191,173 @@ HAL_StatusTypeDef Write_I2C1_Register(I2C_HandleTypeDef *hi2c, StrI2CDeviceInfo*
 		memSizeControlWord = I2C_MEMADD_SIZE_16BIT;
 
 	halres = HAL_I2C_Mem_Write(hi2c,
-			strDeviceInterest->DeviceAddress,
-			strDeviceInterest->StartAddress,
-			memSizeControlWord,
-			bytes,
-			byteCount,
-			10);
+			                   strDeviceInterest->DeviceAddress,
+			                   strDeviceInterest->StartAddress,
+			                   memSizeControlWord,
+			                   bytes,
+			                   byteCount,
+			                   TIMEOUT_WRITE_DEFAULT);
 
 	return halres;
 }
 /*****************************************************************************
- * Function name    : Read_I2C1_DevicesInterest
- *    returns       : bool, true if request was successfull for all devices
+ * Function name    : I2C_Write_Reg_ByteArray
+ *    returns       : HAL_StatusTypeDef
  *    arg1          : I2C_HandleTypeDef *hi2c, the i2c interface hardware structure handle
+ *    arg2          : uint32_t memWidth, either I2C_MEMADD_SIZE_8BIT or I2C_MEMADD_SIZE_16BIT
+ *    arg3          : uint16_t devAddress, the device I2C address, 7 or 10 bit depends on i2c config
+ *    arg4          : uint16_t regStartAddress, the starting address where writing will being in a loop
+ *    arg5          : uint8_t bytes[], the byte array to write
+ *    arg6          : uint32_t byteCount, the count of bytes to write
  * Created by       : Owais
- * Date created     : 11-JUN-2018
- * Description      : Uses all stored addresses to accomplish reading of starting registers upto specified count
+ * Date created     : 14-JUN-2018
+ * Description      : Writes to a starting register address on a specific i2c device
  * Notes            :
  *****************************************************************************/
-bool Read_I2C1_DevicesInterest(I2C_HandleTypeDef *hi2c)
+HAL_StatusTypeDef I2C_Write_Reg_ByteArray(I2C_HandleTypeDef *hi2c, uint32_t memWidth, uint16_t devAddress, uint16_t regStartAddress, uint8_t bytes[], uint32_t byteCount)
+{
+	HAL_StatusTypeDef halres;
+
+	halres = HAL_I2C_Mem_Write(hi2c,
+			                   devAddress,
+							   regStartAddress,
+							   memWidth,
+			                   bytes,
+			                   byteCount,
+			                   TIMEOUT_WRITE_DEFAULT);
+
+	return halres;
+}
+/*****************************************************************************
+ * Function name    : I2C_Write_Reg_Byte
+ *    returns       : HAL_StatusTypeDef
+ *    arg1          : I2C_HandleTypeDef *hi2c, the i2c interface hardware structure handle
+ *    arg2          : uint32_t memWidth, either I2C_MEMADD_SIZE_8BIT or I2C_MEMADD_SIZE_16BIT
+ *    arg3          : uint16_t devAddress, the device I2C address, 7 or 10 bit depends on i2c config
+ *    arg4          : uint16_t regStartAddress, the starting address where writing will being in a loop
+ *    arg5          : uint8_t wr_byte, the byte to write
+ * Created by       : Owais
+ * Date created     : 14-JUN-2018
+ * Description      : Writes to a single register on the i2c device with regAddress
+ * Notes            :
+ *****************************************************************************/
+HAL_StatusTypeDef I2C_Write_Reg_Byte(I2C_HandleTypeDef *hi2c, uint32_t memWidth, uint16_t devAddress, uint16_t regAddress, uint8_t wr_byte)
+{
+	HAL_StatusTypeDef halres;
+    uint8_t wrarr[1];
+    wrarr[0] = wr_byte;
+
+	halres = HAL_I2C_Mem_Write(hi2c,
+			                   devAddress,
+							   regAddress,
+							   memWidth,
+							   wrarr,
+			                   1,
+			                   TIMEOUT_WRITE_DEFAULT);
+
+	return halres;
+}
+/*****************************************************************************
+ * Function name    : I2C_Write_Reg_Set_Bits
+ *    returns       : HAL_StatusTypeDef
+ *    arg1          : I2C_HandleTypeDef *hi2c, the i2c interface hardware structure handle
+ *    arg2          : uint32_t memWidth, either I2C_MEMADD_SIZE_8BIT or I2C_MEMADD_SIZE_16BIT
+ *    arg3          : uint16_t devAddress, the device I2C address, 7 or 10 bit depends on i2c config
+ *    arg4          : uint16_t regStartAddress, the starting address where writing will being in a loop
+ *    arg5          : uint8_t uint8_t or_mask, the bits set in this byte will be set in the word read
+ * Created by       : Owais
+ * Date created     : 14-JUN-2018
+ * Description      : Read, modify with OR mask and write to device the register regAddress
+ * Notes            :
+ *****************************************************************************/
+HAL_StatusTypeDef I2C_Write_Reg_Set_Bits(I2C_HandleTypeDef *hi2c, uint32_t memWidth, uint16_t devAddress, uint16_t regAddress, uint8_t or_mask)
+{
+	HAL_StatusTypeDef res;
+	uint8_t buffer[1] = { 0 };
+	HAL_I2C_Mem_Read(hi2c, devAddress, regAddress, I2C_MEMADD_SIZE_8BIT, buffer, 1, TIMEOUT_WRITE_DEFAULT);
+	buffer[0] |= or_mask;
+	res = HAL_I2C_Mem_Write(hi2c, devAddress, regAddress, I2C_MEMADD_SIZE_8BIT, buffer, 1, TIMEOUT_READ_DEFAULT);
+	return res;
+}
+/*****************************************************************************
+ * Function name    : I2C_Write_Reg_Clear_Bits
+ *    returns       : HAL_StatusTypeDef
+ *    arg1          : I2C_HandleTypeDef *hi2c, the i2c interface hardware structure handle
+ *    arg2          : uint32_t memWidth, either I2C_MEMADD_SIZE_8BIT or I2C_MEMADD_SIZE_16BIT
+ *    arg3          : uint16_t devAddress, the device I2C address, 7 or 10 bit depends on i2c config
+ *    arg4          : uint16_t regStartAddress, the starting address where writing will being in a loop
+ *    arg5          : uint8_t uint8_t clr_mask, the bits set will be cleared in this byte in the target register
+ * Created by       : Owais
+ * Date created     : 14-JUN-2018
+ * Description      : Read, modify write register, clear the bits in the clr_mask which are set
+ * Notes            :
+ *****************************************************************************/
+HAL_StatusTypeDef I2C_Write_Reg_Clear_Bits(I2C_HandleTypeDef *hi2c, uint32_t memWidth, uint16_t devAddress, uint16_t regAddress, uint8_t clr_mask)
+{
+	HAL_StatusTypeDef res;
+	uint8_t buffer[1] = { 0 };
+	HAL_I2C_Mem_Read(hi2c, devAddress, regAddress, I2C_MEMADD_SIZE_8BIT, buffer, 1, TIMEOUT_WRITE_DEFAULT);
+	buffer[0] &= ~clr_mask;
+	res = HAL_I2C_Mem_Write(hi2c, devAddress, regAddress, I2C_MEMADD_SIZE_8BIT, buffer, 1, TIMEOUT_READ_DEFAULT);
+	return res;
+}
+/*****************************************************************************
+ * Function name    : I2C_Read_Reg_Byte
+ *    returns       : HAL_StatusTypeDef
+ *    arg1          : I2C_HandleTypeDef *hi2c, the i2c interface hardware structure handle
+ *    arg2          : uint32_t memWidth, either I2C_MEMADD_SIZE_8BIT or I2C_MEMADD_SIZE_16BIT
+ *    arg3          : uint16_t devAddress, the device I2C address, 7 or 10 bit depends on i2c config
+ *    arg4          : uint16_t regStartAddress, the starting address where writing will being in a loop
+ *    arg5          : uint8_t* rd_byte, the address of byte to read in to
+ * Created by       : Owais
+ * Date created     : 14-JUN-2018
+ * Description      : Reads a single register on the i2c device with regAddress
+ * Notes            :
+ *****************************************************************************/
+HAL_StatusTypeDef I2C_Read_Reg_Byte(I2C_HandleTypeDef *hi2c, uint32_t memWidth, uint16_t devAddress, uint16_t regAddress, uint8_t* rd_byte)
+{
+	HAL_StatusTypeDef halres;
+
+	halres = HAL_I2C_Mem_Read(hi2c,
+			                   devAddress,
+							   regAddress,
+							   memWidth,
+							   rd_byte,
+			                   1,
+							   TIMEOUT_READ_DEFAULT);
+
+	return halres;
+}
+/*****************************************************************************
+ * Function name    : I2C_Read_Devices_Registers
+ *    returns       : bool, true if request was successful for all devices
+ *    arg1          : I2C_HandleTypeDef *hi2c, the i2c interface hardware structure handle
+ *    arg2          : StrI2CDeviceInfo strI2cDev[], array of devices whose byte arrays need to be populated, based in initialized information
+ * Created by       : Owais
+ * Date created     : 14-JUN-2018
+ * Description      : Uses all stored addresses to accomplish reading of starting registers up to specified count
+ * Notes            :
+ *****************************************************************************/
+bool I2C_Read_Devices_Registers(I2C_HandleTypeDef *hi2c, StrI2CDeviceInfo strI2cDev[], uint32_t count)
 {
 	bool result = true;
 	HAL_StatusTypeDef halres;
 	uint32_t memSizeControlWord;
 
-	for(uint8_t i=0; i < CountDevices; i++)
+	for(uint32_t i=0; i < count; i++)
 	{
-		if(StrDevices[i].Is8BitRegisters == true)
+		if(strI2cDev[i].Is8BitRegisters == true)
 			memSizeControlWord = I2C_MEMADD_SIZE_8BIT;
 		else
 			memSizeControlWord = I2C_MEMADD_SIZE_16BIT;
 
 		halres = HAL_I2C_Mem_Read(hi2c,
-				                  StrDevices[i].DeviceAddress,
-				                  StrDevices[i].StartAddress,
+				                  strI2cDev[i].DeviceAddress,
+				                  strI2cDev[i].StartAddress,
 								  memSizeControlWord,
-				                  StrDevices[i].BytesRead,
-				                  StrDevices[i].ByteCount,
-				                  100);
+								  strI2cDev[i].BytesRead,
+								  strI2cDev[i].ByteCount,
+				                  TIMEOUT_READ_DEFAULT);
 
 		if(halres != HAL_OK)
 		{
@@ -282,24 +366,6 @@ bool Read_I2C1_DevicesInterest(I2C_HandleTypeDef *hi2c)
 		}
 	}
 	return result;
-}
-/*****************************************************************************
- * Function name    : Get_DeviceInterestReference
- *    returns       : StrI2CDeviceInfo*, reference to device structure
- *    arg1          : uint8_t index, the requested index
- * Created by       : Owais
- * Date created     : 11-JUN-2018
- * Description      : Gives reference to device structure, used after doing mass read of bus
- * Notes            :
- *****************************************************************************/
-StrI2CDeviceInfo* Get_DeviceInterestReference(uint8_t index)
-{
-	if(index < CountDevices)
-	{
-		return &StrDevices[index];
-	}
-
-	return NULL;
 }
 /* USER CODE END 1 */
 

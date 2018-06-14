@@ -151,6 +151,7 @@ uint8_t dataByteBufferIRQ;  					/// Last received byte from GPRS
 uint8_t connected=0;
 //unsigned char buffer2[SIZE_GPRS_BUFFER];
 int32_t quantityReceived=0;
+StrI2CDeviceInfo i2cDevices[2]; /* added by Owais */
 /* USER CODE END 0 */
 
 int main(void)
@@ -159,7 +160,7 @@ int main(void)
 	EnumCQErrors enCQErr;
 	uint8_t* ptruintMsg;
 	uint8_t eventCode;
-	StrI2CDeviceInfo i2cDevices[2];
+
 	uint32_t cnt_EventsRx = 0;
 	uint32_t cnt_Event_FF = 0;
 	uint32_t cnt_Event_WU = 0;
@@ -168,14 +169,14 @@ int main(void)
 	uint32_t cnt_Event_PD = 0;
 
 	i2cDevices[0].StartAddress = 0;
-	i2cDevices[0].DeviceAddress = LSM6DSM_ADDR_LOW;
+	i2cDevices[0].DeviceAddress = LSM6DS3_ADDR_LOW;
 	i2cDevices[0].Is8BitRegisters = true;
 	i2cDevices[0].ByteCount = 0x6B + 1; /* Total registers */
 
-	i2cDevices[0].StartAddress = 0;
-	i2cDevices[0].DeviceAddress = PCAL6416A_ADDR_LOW;
-	i2cDevices[0].Is8BitRegisters = true;
-	i2cDevices[0].ByteCount = 8; /* read first eight registers only */
+	i2cDevices[1].StartAddress = 0;
+	i2cDevices[1].DeviceAddress = PCAL6416A_ADDR_LOW;
+	i2cDevices[1].Is8BitRegisters = true;
+	i2cDevices[1].ByteCount = 8; /* read first eight registers only */
 
 	/* MCU Configuration----------------------------------------------------------*/
 
@@ -193,18 +194,18 @@ int main(void)
 	MX_GPIO_Init();
 	//HAL_GPIO_WritePin(GPIOB, GPIO_PIN_7, GPIO_PIN_SET);
 
-	greenON;
-	MX_ADC1_Init();
+	//greenON;
+	//MX_ADC1_Init();
 	//MX_TIM3_Init();// francis
 	MX_TIM7_Init();
 	//MX_USART2_UART_Init();
-	MX_USART6_UART_Init();
+	//MX_USART6_UART_Init();
 	//MX_IWDG_Init();
 
-	//MX_I2C2_Init();
-	initializePWM();
+	//MX_I2C1_Init();
+	//initializePWM();
 	/* USER CODE BEGIN 2 */
-	bool bI2C1Res = Config_I2C1(&hi2c1, 400000, false, i2cDevices, sizeof(i2cDevices)/sizeof(i2cDevices[0]));
+	bool bI2C1Res = I2C_Config(&hi2c1, 100000, false);
 
 	if(bI2C1Res == false)
 	{
@@ -230,9 +231,10 @@ int main(void)
 	bool bpc3 = PCAL6416A_MakePinInput(&strPCAL6416A, 1, 0x10); /* Pin 1.4 should be input */
 	bool bpc4 = PCAL6416A_EnableIntOnPin(&strPCAL6416A, 1, 0x10); /* Pin 1.4 rising edge (default) set as an interrupt source */
 
-	LSM6DS3_SetupRefs(&strLSMDev, &hi2c1, LSM6DSM_ADDR_LOW);
+	LSM6DS3_SetupRefs(&strLSMDev, &hi2c1, LSM6DS3_ADDR_LOW);
 	bool b1 = LSM6DS3_Config(&strLSMDev, En_Mode_Both, En_Pow_HIGHPERF_416Hz, 0, 2);
-	bool b2 = LSM6DS3_Set_Events(&strLSMDev, true, true, true, true, true);
+	//bool b2 = LSM6DS3_Set_Events(&strLSMDev, true, true, true, true, true);
+	bool b2 = LSM6DS3_Set_Events(&strLSMDev, true, false, false, false, false); //Only free fall event
 
 	while (1)
 	{
@@ -250,41 +252,47 @@ int main(void)
 				{
 					/* free fall event was detected */
 					cnt_Event_FF++;
+					blueON;
 				}
 
 				if(eventCode & MASK_EVENT_WU)
 				{
 					/* wake up event detected */
 					cnt_Event_WU++;
+					blueON;
 				}
 
 				if(eventCode & MASK_EVENT_SL)
 				{
 					/* sleep event detected */
 					cnt_Event_SL++;
+					blueON;
 				}
 
 				if(eventCode & MASK_EVENT_MD)
 				{
 					/* motion detect event detected */
 					cnt_Event_MD++;
+					blueON;
 				}
 
 				if(eventCode & MASK_EVENT_PD)
 				{
 					/* step event detected */
 					cnt_Event_PD++;
+					blueON;
 				}
 
 				/* Read all the device registers which we are interested in for all devices */
-				bool readI2C = Read_I2C1_DevicesInterest(&hi2c1);
+				bool readI2C = I2C_Read_Devices_Registers(&hi2c1, i2cDevices, (sizeof(i2cDevices) / sizeof(i2cDevices[0])) );
 
 				if(readI2C)
 				{
-					/* We have two devices at index 0 and 1 */
+					/* We have two devices at index 0 and 1 in array i2cDevices */
 					/* These structures have a byte array which will have the register values designed in initialization */
-					StrI2CDeviceInfo* str1 = Get_DeviceInterestReference(0);
-					StrI2CDeviceInfo* str2 = Get_DeviceInterestReference(1);
+                    /* inspect i2cDevices in watch window */
+					HAL_Delay(3000);
+					blueOFF;
 				}
 			}
 			else
@@ -304,11 +312,12 @@ int main(void)
 /* Call back for all GPIO EXTI type interrupts */
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
-  if(GPIO_Pin == GPIO_PIN_2) /* Line 2 i.e. PC0 */
-  {
-	  /* it means that GPIO expander /INT1 called */
-	  ProcessISR(&strLSMDev);
-  }
+	if(GPIO_Pin == GPIO_PIN_0) /* Line 2 i.e. PC0 */
+	{
+		/* it means that GPIO expander /INT1 called */
+		//redON;
+		LSM6DS3_ProcessISR(&strLSMDev);
+	}
 }
 
 /** System Clock Configuration
@@ -641,8 +650,9 @@ static void MX_GPIO_Init(void)
 
   /*Configure GPIO pin : PC0 */
   GPIO_InitStruct.Pin = GPIO_PIN_0;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
-  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  //GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING_FALLING;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
   /* EXTI interrupt init*/

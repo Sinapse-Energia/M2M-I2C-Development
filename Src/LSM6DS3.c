@@ -24,9 +24,7 @@ uint32_t CntEnqEventsFail = 0;
 /*****************************************************************************
  *  Function Prototypes
  *****************************************************************************/
-uint8_t ReadRegister(StrLSM6DS3* dev, uint8_t reg_addr);
-void WriteRegister(StrLSM6DS3* dev, uint8_t reg_addr, uint8_t ORvalue);
-void WriteORValueRegister(StrLSM6DS3* dev, uint8_t reg_addr, uint8_t ORvalue);
+
 /*****************************************************************************
  * Function name    : LSM6DS3_SetupRefs
  *    returns       : void
@@ -64,13 +62,13 @@ bool LSM6DS3_Config(StrLSM6DS3* dev, EnumOperatingMode enOp, EnumPowerMode enPow
 	dev->enPowerMode = enPow;
 
 	/* Check if device is responsive (WHO am i register) */
-	uint8_t buffer[1] = { 0 };
-	uint8_t wr_bytes[1];
+	uint8_t rd_buffer[1] = { 0 };
+	uint8_t wr_buffer[1];
 
 	/* Read WHO AM I */
-	halres = HAL_I2C_Mem_Read(dev->i2c_dev, dev->addr, LSM6DSM_WHO_AM_I, I2C_MEMADD_SIZE_8BIT, buffer, 1, 100);
+	halres = I2C_Read_Reg_Byte(dev->i2c_dev, I2C_MEMADD_SIZE_8BIT, dev->addr, LSM6DS3_WHO_AM_I, rd_buffer);
 
-	if(buffer[0] != 0x69)
+	if(rd_buffer[0] != 0x69)
 		result = false;
 	else
 	{
@@ -79,16 +77,16 @@ bool LSM6DS3_Config(StrLSM6DS3* dev, EnumOperatingMode enOp, EnumPowerMode enPow
 			/* Configure ACC */
 			/* CTRL1_XL (10h) */
 			/* Don't disturb BW_XL bits for now to change analog LPF bandwidth and leave it at auto selection */
-			wr_bytes[0] = enPow << 4 | scaleXL << 2;
-			halres = HAL_I2C_Mem_Write(dev->i2c_dev, dev->addr, LSM6DSM_CTRL1_XL, I2C_MEMADD_SIZE_8BIT, wr_bytes, 1, 10);
+			wr_buffer[0] = enPow << 4 | scaleXL << 2;
+			halres = I2C_Write_Reg_Byte(dev->i2c_dev, I2C_MEMADD_SIZE_8BIT, dev->addr, LSM6DS3_WHO_AM_I, wr_buffer[0]);
 		}
 
 		if(enOp == En_Mode_Gyro || enOp == En_Mode_Both)
 		{
 			/* Configure GYRO */
 			/* CTRL2_G (11h) */
-			wr_bytes[0] = enPow << 4 | scaleG << 2;
-			halres = HAL_I2C_Mem_Write(dev->i2c_dev, dev->addr, LSM6DSM_CTRL2_G, I2C_MEMADD_SIZE_8BIT, wr_bytes, 1, 10);
+			wr_buffer[0] = enPow << 4 | scaleG << 2;
+			halres = I2C_Write_Reg_Byte(dev->i2c_dev, I2C_MEMADD_SIZE_8BIT, dev->addr, LSM6DS3_CTRL2_G, wr_buffer[0]);
 		}
 
 		if(halres == HAL_OK)
@@ -115,7 +113,6 @@ bool LSM6DS3_Config(StrLSM6DS3* dev, EnumOperatingMode enOp, EnumPowerMode enPow
 bool LSM6DS3_Set_Events(StrLSM6DS3* dev, bool ff, bool wu, bool sl, bool md, bool sd)
 {
 	bool bResult = false;
-	uint8_t regVal;
 	dev->bDetectFreeFall = ff;
 	dev->bDetectWakeup = wu;
 	dev->bDetectSleep = sl;
@@ -151,16 +148,11 @@ bool LSM6DS3_Set_Events(StrLSM6DS3* dev, bool ff, bool wu, bool sl, bool md, boo
               6/ODR_XL = 6/412 Hz ~= 15 msec in order to avoid false detections
 			*/
 
-			WriteRegister(dev, LSM6DSM_WAKE_UP_DUR, 0x0);
-			WriteRegister(dev, LSM6DSM_FREE_FALL, 0x33);
+			I2C_Write_Reg_Byte(dev->i2c_dev, I2C_MEMADD_SIZE_8BIT, dev->addr, LSM6DS3_WAKE_UP_DUR, 0x00);
+			I2C_Write_Reg_Byte(dev->i2c_dev, I2C_MEMADD_SIZE_8BIT, dev->addr, LSM6DS3_FREE_FALL, 0x33);
 
-			regVal = ReadRegister(dev, LSM6DSM_MD1_CFG);
-			regVal |= 0x10;
-			WriteRegister(dev, LSM6DSM_MD1_CFG, regVal);
-
-			regVal = ReadRegister(dev, LSM6DSM_TAP_CFG);
-			regVal |= 0x01;
-			WriteRegister(dev, LSM6DSM_TAP_CFG, regVal);
+			I2C_Write_Reg_Set_Bits(dev->i2c_dev, I2C_MEMADD_SIZE_8BIT, dev->addr, LSM6DS3_MD1_CFG,  0x10);
+			I2C_Write_Reg_Set_Bits(dev->i2c_dev, I2C_MEMADD_SIZE_8BIT, dev->addr, LSM6DS3_TAP_CFG, 0x01);
 		}
 
 		if(wu)
@@ -173,13 +165,9 @@ bool LSM6DS3_Set_Events(StrLSM6DS3* dev, bool ff, bool wu, bool sl, bool md, boo
 			 4 Write 02h into WAKE_UP_THS // Set wake-up threshold
 			 5 Write 20h into MD1_CFG // Wake-up interrupt driven to INT1 pin
 			 */
-			regVal = ReadRegister(dev, LSM6DSM_WAKE_UP_THS);
-			regVal |= 0x02;
-			WriteRegister(dev, LSM6DSM_WAKE_UP_THS, regVal);
 
-			regVal = ReadRegister(dev, LSM6DSM_MD1_CFG);
-			regVal |= 0x20;
-			WriteRegister(dev, LSM6DSM_MD1_CFG, regVal);
+			I2C_Write_Reg_Set_Bits(dev->i2c_dev, I2C_MEMADD_SIZE_8BIT, dev->addr, LSM6DS3_WAKE_UP_THS, 0x02);
+			I2C_Write_Reg_Set_Bits(dev->i2c_dev, I2C_MEMADD_SIZE_8BIT, dev->addr, LSM6DS3_MD1_CFG, 0x20);
 		}
 
 		if(sl)
@@ -195,17 +183,9 @@ bool LSM6DS3_Set_Events(StrLSM6DS3* dev, bool ff, bool wu, bool sl, bool md, boo
              4 Write 80h into MD1_CFG // Activity/Inactivity interrupt driven to INT1 pin
 			 */
 
-			regVal = ReadRegister(dev, LSM6DSM_WAKE_UP_DUR);
-			regVal |= 0x02; /* 2*512 ODR, 1024 Hz = 1 second wait */
-			WriteRegister(dev, LSM6DSM_WAKE_UP_DUR, regVal);
-
-			regVal = ReadRegister(dev, LSM6DSM_WAKE_UP_THS);
-			regVal |= 0x42;
-			WriteRegister(dev, LSM6DSM_WAKE_UP_THS, regVal);
-
-			regVal = ReadRegister(dev, LSM6DSM_MD1_CFG);
-			regVal |= 0x80;
-			WriteRegister(dev, LSM6DSM_MD1_CFG, regVal);
+			I2C_Write_Reg_Set_Bits(dev->i2c_dev, I2C_MEMADD_SIZE_8BIT, dev->addr, LSM6DS3_WAKE_UP_DUR, 0x02);
+			I2C_Write_Reg_Set_Bits(dev->i2c_dev, I2C_MEMADD_SIZE_8BIT, dev->addr, LSM6DS3_WAKE_UP_THS, 0x42);
+			I2C_Write_Reg_Set_Bits(dev->i2c_dev, I2C_MEMADD_SIZE_8BIT, dev->addr, LSM6DS3_MD1_CFG, 0x80);
 		}
 
 		if(md)
@@ -224,21 +204,11 @@ bool LSM6DS3_Set_Events(StrLSM6DS3* dev, bool ff, bool wu, bool sl, bool md, boo
              7 Write 40h into TAP_CFG   // Enable pedometer algorithm
              8 Write C0h into INT1_CTRL // Significant motion interrupt driven to INT1
 			 */
-			regVal = ReadRegister(dev, LSM6DSM_TAP_CFG);
-			regVal &= ~0x40; /* Clear bit 6 PEDO_EN */
-			WriteRegister(dev, LSM6DSM_TAP_CFG, regVal);
 
-			regVal = ReadRegister(dev, LSM6DSM_CTRL10_C);
-			regVal |= 0x3D;
-			WriteRegister(dev, LSM6DSM_CTRL10_C, regVal);
-
-			regVal = ReadRegister(dev, LSM6DSM_TAP_CFG);
-			regVal |= 0x40; /* enable bit 6 PEDO_EN */
-			WriteRegister(dev, LSM6DSM_TAP_CFG, regVal);
-
-			regVal = ReadRegister(dev, LSM6DSM_INT1_CTRL);
-			regVal |= 0xC0;
-			WriteRegister(dev, LSM6DSM_INT1_CTRL, regVal);
+			I2C_Write_Reg_Clear_Bits(dev->i2c_dev, I2C_MEMADD_SIZE_8BIT, dev->addr, LSM6DS3_TAP_CFG, 0x40);
+			I2C_Write_Reg_Set_Bits(dev->i2c_dev, I2C_MEMADD_SIZE_8BIT, dev->addr, LSM6DS3_CTRL10_C, 0x3D);
+			I2C_Write_Reg_Set_Bits(dev->i2c_dev, I2C_MEMADD_SIZE_8BIT, dev->addr, LSM6DS3_TAP_CFG, 0x40);
+			I2C_Write_Reg_Set_Bits(dev->i2c_dev, I2C_MEMADD_SIZE_8BIT, dev->addr, LSM6DS3_INT1_CTRL, 0xC0);
 		}
 
 		if(sd)
@@ -250,69 +220,14 @@ bool LSM6DS3_Set_Events(StrLSM6DS3* dev, bool ff, bool wu, bool sl, bool md, boo
              3 Write 40h into TAP_CFG  // Enable pedometer algorithm
              4 Write 80h into INT1_CTRL // Step Detector interrupt driven to INT1 pin
 			 */
-			regVal = ReadRegister(dev, LSM6DSM_CTRL10_C);
-			regVal |= 0x3C;
-			WriteRegister(dev, LSM6DSM_CTRL10_C, regVal);
 
-			regVal = ReadRegister(dev, LSM6DSM_TAP_CFG);
-			regVal |= 0x40; /* enable bit 6 PEDO_EN */
-			WriteRegister(dev, LSM6DSM_TAP_CFG, regVal);
-
-			regVal = ReadRegister(dev, LSM6DSM_INT1_CTRL);
-			regVal |= 0x80;
-			WriteRegister(dev, LSM6DSM_INT1_CTRL, regVal);
+			I2C_Write_Reg_Set_Bits(dev->i2c_dev, I2C_MEMADD_SIZE_8BIT, dev->addr, LSM6DS3_CTRL10_C, 0x3c);
+			I2C_Write_Reg_Set_Bits(dev->i2c_dev, I2C_MEMADD_SIZE_8BIT, dev->addr, LSM6DS3_TAP_CFG, 0x40);
+			I2C_Write_Reg_Set_Bits(dev->i2c_dev, I2C_MEMADD_SIZE_8BIT, dev->addr, LSM6DS3_INT1_CTRL, 0x80);
 		}
 	}
 
 	return bResult;
-}
-/*****************************************************************************
- * Function name    : ReadRegister
- *    returns       : uint8_t, the register value
- *    arg1          : StrLSM6DSM* strDev, the LSM6DSM descriptor
- * Created by       : Owais
- * Date created     : 22-May-2018
- * Description      : Read the register value and return its 8-bit value
- * Notes            :
- *****************************************************************************/
-uint8_t ReadRegister(StrLSM6DS3* dev, uint8_t reg_addr)
-{
-	uint8_t buffer[1] = { 0 };
-	HAL_I2C_Mem_Read(dev->i2c_dev, dev->addr, reg_addr, I2C_MEMADD_SIZE_8BIT, buffer, 1, 100);
-	return buffer[0];
-}
-/*****************************************************************************
- * Function name    : WriteRegister
- *    returns       : uint8_t, the register value
- *    arg1          : StrLSM6DSM* strDev, the LSM6DSM descriptor
- *    arg2          : uint8_t value, the register value
- * Created by       : Owais
- * Date created     : 22-May-2018
- * Description      : Read the register value and return its 8-bit value
- * Notes            :
- *****************************************************************************/
-void WriteRegister(StrLSM6DS3* dev, uint8_t reg_addr, uint8_t value)
-{
-	uint8_t buffer[1] = { 0 };
-	buffer[0] = value;
-	HAL_I2C_Mem_Write(dev->i2c_dev, dev->addr, reg_addr, I2C_MEMADD_SIZE_8BIT, buffer, 1, 100);
-}
-/*****************************************************************************
- * Function name    : WriteORValueRegister
- *    returns       : uint8_t, the register value
- *    arg1          : StrLSM6DSM* strDev, the LSM6DSM descriptor
- *    arg2          : uint8_t ORvalue, the OR mask value to write
- * Created by       : Owais
- * Date created     : 22-May-2018
- * Description      : Read modify register withy OR mask
- * Notes            :
- *****************************************************************************/
-void WriteORValueRegister(StrLSM6DS3* dev, uint8_t reg_addr, uint8_t ORvalue)
-{
-	uint8_t buffer[1] = { 0 };
-	HAL_I2C_Mem_Read(dev->i2c_dev, dev->addr, reg_addr, I2C_MEMADD_SIZE_8BIT, buffer, 1, 100);
-	buffer[0] |= ORvalue;
-	HAL_I2C_Mem_Write(dev->i2c_dev, dev->addr, reg_addr, I2C_MEMADD_SIZE_8BIT, buffer, 1, 100);
 }
 /*****************************************************************************
  * Function name    : ProcessISR
@@ -323,52 +238,51 @@ void WriteORValueRegister(StrLSM6DS3* dev, uint8_t reg_addr, uint8_t ORvalue)
  * Description      : Function called from ISR (GPIO)
  * Notes            :
  *****************************************************************************/
-void ProcessISR(StrLSM6DS3* dev)
+void LSM6DS3_ProcessISR(StrLSM6DS3* dev)
 {
 	/* if resultCode == 0b11111, it means all five events were detected */
 	/* if resultCode == 0b00001, only FF was detected */
 
 	uint8_t resultCode = 0;
-	uint8_t rdRegVal;
+	uint8_t rdRegVal_WUS;
+	uint8_t rdRegVal_FS;
 	EnumCQErrors cqErr;
+	uint8_t rd_buffer_WUS[1];
+	uint8_t rd_buffer_FS[1];
+
+	I2C_Read_Reg_Byte(dev->i2c_dev, I2C_MEMADD_SIZE_8BIT, dev->addr, LSM6DS3_WAKE_UP_SRC, rd_buffer_WUS);
+	I2C_Read_Reg_Byte(dev->i2c_dev, I2C_MEMADD_SIZE_8BIT, dev->addr, LSM6DS3_FUNC_SRC, rd_buffer_FS);
+
+	rdRegVal_WUS = rd_buffer_WUS[0];
+	rdRegVal_FS = rd_buffer_FS[0];
 
 	if(dev->bDetectFreeFall)
 	{
-		rdRegVal = ReadRegister(dev, LSM6DSM_WAKE_UP_SRC);
-
-		if( rdRegVal & 0x20)
+		if( rdRegVal_WUS & 0x20)
 			resultCode |= MASK_EVENT_FF;
 	}
 
 	if(dev->bDetectWakeup)
 	{
-		rdRegVal = ReadRegister(dev, LSM6DSM_WAKE_UP_SRC);
-
-		if( rdRegVal & 0x8)
+		if( rdRegVal_WUS & 0x8)
 			resultCode |= MASK_EVENT_WU;
 	}
 
 	if(dev->bDetectSleep)
 	{
-		rdRegVal = ReadRegister(dev, LSM6DSM_WAKE_UP_SRC);
-
-		if( rdRegVal & 0x10)
+		if( rdRegVal_WUS & 0x10)
 			resultCode |= MASK_EVENT_SL;
 	}
 
 	if(dev->bDetectMotion)
 	{
-		rdRegVal = ReadRegister(dev, LSM6DSM_FUNC_SRC);
-
-		if( rdRegVal & 0x40)
+		if( rdRegVal_FS & 0x40)
 			resultCode |= MASK_EVENT_MD;
 	}
 
 	if(dev->bDetectStep)
 	{
-		rdRegVal = ReadRegister(dev, LSM6DSM_FUNC_SRC);
-
-		if( rdRegVal & 0x10)
+		if( rdRegVal_FS & 0x10)
 			resultCode |= MASK_EVENT_PD;
 	}
 

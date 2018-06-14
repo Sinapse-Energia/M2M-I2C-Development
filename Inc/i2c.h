@@ -50,7 +50,8 @@
 #include "stdint.h"
 
 /* USER CODE BEGIN Includes */
-
+#define TIMEOUT_WRITE_DEFAULT 100
+#define TIMEOUT_READ_DEFAULT  100
 /* USER CODE END Includes */
 
 extern I2C_HandleTypeDef hi2c1;
@@ -65,19 +66,21 @@ typedef struct
 	uint16_t ByteCount;
 	uint8_t  BytesRead[MAX_BYTES_TO_READ];
 	bool     Is8BitRegisters; /* TRUE if 8-bit registers */
-}StrI2CDeviceInfo;
+}StrI2CDeviceInfo; /* a structure which helps us remember an i2c device general properties and used to populate BytesRead array with registers contents */
 /* USER CODE END Private defines */
 
 extern void _Error_Handler(char *, int);
 
-void MX_I2C1_Init(void);
-
 /* USER CODE BEGIN Prototypes */
-bool Config_I2C1(I2C_HandleTypeDef *hi2c, uint32_t baudRate, bool bTenBitAddress, StrI2CDeviceInfo strDeviceInterest[], uint8_t devCount);
-HAL_StatusTypeDef Write_I2C1_Message(I2C_HandleTypeDef *hi2c, uint16_t i2c_address, uint8_t bytes[], uint32_t byteCount);
-HAL_StatusTypeDef Write_I2C1_Register(I2C_HandleTypeDef *hi2c, StrI2CDeviceInfo* strDeviceInterest, uint8_t bytes[], uint32_t byteCount);
-bool Read_I2C1_DevicesInterest(I2C_HandleTypeDef *hi2c);
-StrI2CDeviceInfo* Get_DeviceInterestReference(uint8_t index);
+bool              I2C_Config(I2C_HandleTypeDef *hi2c, uint32_t baudRate, bool bTenBitAddress);
+HAL_StatusTypeDef I2C_Write_Raw_Message(I2C_HandleTypeDef *hi2c, uint16_t i2c_address, uint8_t bytes[], uint32_t byteCount);
+HAL_StatusTypeDef I2C_Write_Reg_Device_ByteArray(I2C_HandleTypeDef *hi2c, StrI2CDeviceInfo* strDeviceInterest, uint8_t bytes[], uint32_t byteCount);
+HAL_StatusTypeDef I2C_Write_Reg_ByteArray(I2C_HandleTypeDef *hi2c, uint32_t memWidth, uint16_t devAddress, uint16_t regStartAddress, uint8_t bytes[], uint32_t byteCount);
+HAL_StatusTypeDef I2C_Write_Reg_Byte(I2C_HandleTypeDef *hi2c, uint32_t memWidth, uint16_t devAddress, uint16_t regAddress, uint8_t wr_byte);
+HAL_StatusTypeDef I2C_Write_Reg_Set_Bits(I2C_HandleTypeDef *hi2c, uint32_t memWidth, uint16_t devAddress, uint16_t regAddress, uint8_t or_mask);
+HAL_StatusTypeDef I2C_Write_Reg_Clear_Bits(I2C_HandleTypeDef *hi2c, uint32_t memWidth, uint16_t devAddress, uint16_t regAddress, uint8_t clr_mask);
+HAL_StatusTypeDef I2C_Read_Reg_Byte(I2C_HandleTypeDef *hi2c, uint32_t memWidth, uint16_t devAddress, uint16_t regAddress, uint8_t* rd_byte);
+bool              I2C_Read_Devices_Registers(I2C_HandleTypeDef *hi2c, StrI2CDeviceInfo strI2cDev[], uint32_t count);
 /* USER CODE END Prototypes */
 
 #ifdef __cplusplus

@@ -247,7 +247,7 @@ static void _read_data_atomic(const tsl2561_t *dev, uint16_t *full, uint16_t *ir
     res = HAL_I2C_Master_Transmit(dev->i2c_dev, dev->addr, wr_buffer, 1, 10);
     res = HAL_I2C_Master_Receive(dev->i2c_dev, dev->addr, &rd_buffer[0], 1, 10);
 
-    wr_buffer[0] = TSL2561_COMMAND_MODE | TSL2561_REGISTER_CHAN0 + 1;
+    wr_buffer[0] = (TSL2561_COMMAND_MODE | TSL2561_REGISTER_CHAN0) + 1;
     res = HAL_I2C_Master_Transmit(dev->i2c_dev, dev->addr, wr_buffer, 1, 10);
     res = HAL_I2C_Master_Receive(dev->i2c_dev, dev->addr, &rd_buffer[1], 1, 10);
 
@@ -258,7 +258,7 @@ static void _read_data_atomic(const tsl2561_t *dev, uint16_t *full, uint16_t *ir
     res = HAL_I2C_Master_Transmit(dev->i2c_dev, dev->addr, wr_buffer, 1, 10);
     res = HAL_I2C_Master_Receive(dev->i2c_dev, dev->addr, &rd_buffer[0], 1, 10);
 
-    wr_buffer[0] = TSL2561_COMMAND_MODE | TSL2561_REGISTER_CHAN1 + 1;
+    wr_buffer[0] = (TSL2561_COMMAND_MODE | TSL2561_REGISTER_CHAN1) + 1;
     res = HAL_I2C_Master_Transmit(dev->i2c_dev, dev->addr, wr_buffer, 1, 10);
     res = HAL_I2C_Master_Receive(dev->i2c_dev, dev->addr, &rd_buffer[1], 1, 10);
     *ir = (rd_buffer[1] << 8) | rd_buffer[0];

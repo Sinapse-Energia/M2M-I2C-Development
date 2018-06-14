@@ -11,6 +11,7 @@
  * of the device that requires the interrupt information
  *
  * Updates:
+ * Modified on JUN 14, 2018 to use L1 I2C functions
  *****************************************************************************/
 #include "PCAL6416A.h"
 /*****************************************************************************
@@ -38,37 +39,6 @@ void PCAL6416A_SetupRefs(StrPCAL6416A* strDev, I2C_HandleTypeDef* i2c, uint8_t a
 	strDev->addr = addr;
 }
 /*****************************************************************************
- * Function name    : PCAL6416A_ReadRegister
- *    returns       : uint8_t, the register value
- *    arg1          : StrPCAL6416A* strDev, the StrPCAL6416A descriptor
- * Created by       : Owais
- * Date created     : 22-May-2018
- * Description      : Read the register value and return its 8-bit value
- * Notes            :
- *****************************************************************************/
-uint8_t PCAL6416A_ReadRegister(StrPCAL6416A* dev, uint8_t reg_addr)
-{
-	uint8_t buffer[1] = { 0 };
-	HAL_I2C_Mem_Read(dev->i2c_dev, dev->addr, reg_addr, I2C_MEMADD_SIZE_8BIT, buffer, 1, 100);
-	return buffer[0];
-}
-/*****************************************************************************
- * Function name    : PCAL6416A_WriteRegister
- *    returns       : uint8_t, the register value
- *    arg1          : StrPCAL6416A* strDev, the PCAL6416A descriptor
- *    arg2          : uint8_t value, the register value
- * Created by       : Owais
- * Date created     : 22-May-2018
- * Description      : Read the register value and return its 8-bit value
- * Notes            :
- *****************************************************************************/
-void PCAL6416A_WriteRegister(StrPCAL6416A* dev, uint8_t reg_addr, uint8_t value)
-{
-	uint8_t buffer[1] = { 0 };
-	buffer[0] = value;
-	HAL_I2C_Mem_Write(dev->i2c_dev, dev->addr, reg_addr, I2C_MEMADD_SIZE_8BIT, buffer, 1, 100);
-}
-/*****************************************************************************
  * Function name    : PCAL6416A_MakePinOutput
  *    returns       : bool
  *    arg1          : StrPCAL6416A* strDev, the PCAL6416A descriptor
@@ -82,18 +52,11 @@ void PCAL6416A_WriteRegister(StrPCAL6416A* dev, uint8_t reg_addr, uint8_t value)
 bool PCAL6416A_MakePinOutput(StrPCAL6416A* dev, uint8_t banknumber, uint8_t bitmask)
 {
 	bool result = false;
-	HAL_StatusTypeDef halres;
-	uint8_t buffer[10] = { 0 };
-
-	/*test*/
-	halres = HAL_I2C_Mem_Read(dev->i2c_dev, dev->addr, 0, I2C_MEMADD_SIZE_8BIT, buffer, 4, 100);
+	HAL_StatusTypeDef halres = HAL_ERROR;
 
 	if(banknumber <= 1)
 	{
-		halres = HAL_I2C_Mem_Read(dev->i2c_dev, dev->addr, PCAL6416A_REG_ConfigurationPort0 + banknumber, I2C_MEMADD_SIZE_8BIT, buffer, 1, 100);
-		/* clear bit at bit-mask */
-		buffer[0] = buffer[0] & ~bitmask;
-		halres = HAL_I2C_Mem_Write(dev->i2c_dev, dev->addr, PCAL6416A_REG_ConfigurationPort0 + banknumber, I2C_MEMADD_SIZE_8BIT, buffer, 1, 100);
+		halres = I2C_Write_Reg_Clear_Bits(dev->i2c_dev, I2C_MEMADD_SIZE_8BIT, dev->addr, PCAL6416A_REG_ConfigurationPort0 + banknumber, bitmask);
 	}
 
 	if(halres == HAL_OK)
@@ -101,7 +64,7 @@ bool PCAL6416A_MakePinOutput(StrPCAL6416A* dev, uint8_t banknumber, uint8_t bitm
 	return result;
 }
 /*****************************************************************************
- * Function name    : PCAL6416A_MakePinOutput
+ * Function name    : PCAL6416A_WritePinValue
  *    returns       : bool
  *    arg1          : StrPCAL6416A* strDev, the PCAL6416A descriptor
  *    arg2          : uint8_t banknumber, the bank 0 or 1 (range 0 or 1)
@@ -116,7 +79,7 @@ bool PCAL6416A_WritePinValue(StrPCAL6416A* dev, uint8_t banknumber, uint8_t bitm
 {
 	bool result = false;
 	HAL_StatusTypeDef halres;
-	uint8_t buffer[2] = { 0 };
+	uint8_t buffer[1] = { 0 };
 	uint8_t outputPortAdd;
 
 	if(banknumber == 0)
@@ -124,7 +87,7 @@ bool PCAL6416A_WritePinValue(StrPCAL6416A* dev, uint8_t banknumber, uint8_t bitm
 	else
 		outputPortAdd = PCAL6416A_REG_OutoutPort1;
 
-	halres = HAL_I2C_Mem_Read(dev->i2c_dev, dev->addr, outputPortAdd, I2C_MEMADD_SIZE_8BIT, buffer, 1, 100);
+	halres = I2C_Read_Reg_Byte(dev->i2c_dev, I2C_MEMADD_SIZE_8BIT, dev->addr, outputPortAdd, buffer);
 
 	/* set pin value at bit position */
 	if(pinvalue == false)
@@ -132,7 +95,7 @@ bool PCAL6416A_WritePinValue(StrPCAL6416A* dev, uint8_t banknumber, uint8_t bitm
 	else
 		buffer[0] = buffer[0] | bitmask;
 
-	halres = HAL_I2C_Mem_Write(dev->i2c_dev, dev->addr, outputPortAdd, I2C_MEMADD_SIZE_8BIT, buffer, 1, 100);
+	halres = I2C_Write_Reg_Byte(dev->i2c_dev, I2C_MEMADD_SIZE_8BIT, dev->addr, outputPortAdd, buffer[0]);
 
 	if(halres == HAL_OK)
 		result = true;
@@ -152,15 +115,11 @@ bool PCAL6416A_WritePinValue(StrPCAL6416A* dev, uint8_t banknumber, uint8_t bitm
 bool PCAL6416A_MakePinInput(StrPCAL6416A* dev, uint8_t banknumber, uint8_t bitmask)
 {
 	bool result = false;
-	HAL_StatusTypeDef halres;
-	uint8_t buffer[10] = { 0 };
+	HAL_StatusTypeDef halres = HAL_ERROR;
 
 	if(banknumber <= 1)
 	{
-		halres = HAL_I2C_Mem_Read(dev->i2c_dev, dev->addr, PCAL6416A_REG_ConfigurationPort0 + banknumber, I2C_MEMADD_SIZE_8BIT, buffer, 1, 100);
-		/* set bit(s) at bit-mask, do read modify write operation */
-		buffer[0] = buffer[0] | bitmask;
-		halres = HAL_I2C_Mem_Write(dev->i2c_dev, dev->addr, PCAL6416A_REG_ConfigurationPort0 + banknumber, I2C_MEMADD_SIZE_8BIT, buffer, 1, 100);
+		halres = I2C_Write_Reg_Set_Bits(dev->i2c_dev, I2C_MEMADD_SIZE_8BIT, dev->addr, PCAL6416A_REG_ConfigurationPort0 + banknumber, bitmask);
 	}
 
 	if(halres == HAL_OK)
@@ -188,15 +147,11 @@ bool PCAL6416A_MakePinInput(StrPCAL6416A* dev, uint8_t banknumber, uint8_t bitma
 bool PCAL6416A_EnableIntOnPin(StrPCAL6416A* dev, uint8_t banknumber, uint8_t bitmask)
 {
 	bool result = false;
-	HAL_StatusTypeDef halres;
-	uint8_t buffer[10] = { 0 };
+	HAL_StatusTypeDef halres = HAL_ERROR;
 
 	if(banknumber <= 1)
 	{
-		halres = HAL_I2C_Mem_Read(dev->i2c_dev, dev->addr, PCAL6416A_REG_InterruptMask0 + banknumber, I2C_MEMADD_SIZE_8BIT, buffer, 1, 100);
-		/* clear bit(s) at bit-mask, do read modify write operation */
-		buffer[0] = buffer[0] & ~bitmask;
-		halres = HAL_I2C_Mem_Write(dev->i2c_dev, dev->addr, PCAL6416A_REG_InterruptMask0 + banknumber, I2C_MEMADD_SIZE_8BIT, buffer, 1, 100);
+		halres = I2C_Write_Reg_Clear_Bits(dev->i2c_dev, I2C_MEMADD_SIZE_8BIT, dev->addr, PCAL6416A_REG_InterruptMask0 + banknumber, bitmask);
 	}
 
 	if(halres == HAL_OK)
@@ -219,10 +174,11 @@ bool PCAL6416A_EnableIntOnPin(StrPCAL6416A* dev, uint8_t banknumber, uint8_t bit
 bool PCAL6416A_GetInterruptStatus(StrPCAL6416A* dev, uint8_t* bank0Status, uint8_t* bank1Status)
 {
 	bool result = false;
-	HAL_StatusTypeDef halres;
-	uint8_t buffer[10] = { 0 };
+	HAL_StatusTypeDef halres = HAL_ERROR;
+	uint8_t buffer[2] = { 0 };
 
-	halres = HAL_I2C_Mem_Read(dev->i2c_dev, dev->addr, PCAL6416A_REG_InterruptStatus0, I2C_MEMADD_SIZE_8BIT, buffer, 2, 100);
+	halres = I2C_Read_Reg_Byte(dev->i2c_dev, I2C_MEMADD_SIZE_8BIT, dev->addr, PCAL6416A_REG_InterruptStatus0, &buffer[0]);
+	halres = I2C_Read_Reg_Byte(dev->i2c_dev, I2C_MEMADD_SIZE_8BIT, dev->addr, PCAL6416A_REG_InterruptStatus1, &buffer[1]);
 
 	if(halres == HAL_OK)
 	{

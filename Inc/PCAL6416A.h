@@ -16,6 +16,7 @@
 #include "stm32f2xx_hal.h"
 #include "stdint.h"
 #include "stdbool.h"
+#include "i2c.h"
 /*******************************************************************************
  *  #defines section
  *******************************************************************************/
@@ -59,11 +60,9 @@ typedef struct
  *  global functions (public)
  *******************************************************************************/
 void PCAL6416A_SetupRefs(StrPCAL6416A* strDev, I2C_HandleTypeDef* i2c, uint8_t addr);
-uint8_t PCAL6416A_ReadRegister(StrPCAL6416A* dev, uint8_t reg_addr);
-void PCAL6416A_WriteRegister(StrPCAL6416A* dev, uint8_t reg_addr, uint8_t value);
 bool PCAL6416A_MakePinOutput(StrPCAL6416A* dev, uint8_t banknumber, uint8_t bitmask);
-bool PCAL6416A_WritePinValue(StrPCAL6416A* dev, uint8_t banknumber, uint8_t bitmask, bool pinvalue);
 bool PCAL6416A_MakePinInput(StrPCAL6416A* dev, uint8_t banknumber, uint8_t bitmask);
+bool PCAL6416A_WritePinValue(StrPCAL6416A* dev, uint8_t banknumber, uint8_t bitmask, bool pinvalue);
 bool PCAL6416A_EnableIntOnPin(StrPCAL6416A* dev, uint8_t banknumber, uint8_t bitmask);
 bool PCAL6416A_GetInterruptStatus(StrPCAL6416A* dev, uint8_t* bank0Status, uint8_t* bank1Status);
 
