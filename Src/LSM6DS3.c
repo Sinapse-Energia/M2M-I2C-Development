@@ -78,7 +78,7 @@ bool LSM6DS3_Config(StrLSM6DS3* dev, EnumOperatingMode enOp, EnumPowerMode enPow
 			/* CTRL1_XL (10h) */
 			/* Don't disturb BW_XL bits for now to change analog LPF bandwidth and leave it at auto selection */
 			wr_buffer[0] = enPow << 4 | scaleXL << 2;
-			halres = I2C_Write_Reg_Byte(dev->i2c_dev, I2C_MEMADD_SIZE_8BIT, dev->addr, LSM6DS3_WHO_AM_I, wr_buffer[0]);
+			halres = I2C_Write_Reg_Byte(dev->i2c_dev, I2C_MEMADD_SIZE_8BIT, dev->addr, LSM6DS3_CTRL1_XL, wr_buffer[0]);
 		}
 
 		if(enOp == En_Mode_Gyro || enOp == En_Mode_Both)

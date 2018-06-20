@@ -110,7 +110,10 @@ bool PCAL6416A_WritePinValue(StrPCAL6416A* dev, uint8_t banknumber, uint8_t bitm
  * Created by       : Owais
  * Date created     : 09-Jun-2018
  * Description      : Configure a bit as input
- * Notes            :
+ * Notes            : If a bit in these registers is set to 1, the corresponding port pin is enabled as a
+                      high-impedance input.
+                      If a bit in these registers is cleared to 0, the corresponding port pin
+                      is enabled as an output.
  *****************************************************************************/
 bool PCAL6416A_MakePinInput(StrPCAL6416A* dev, uint8_t banknumber, uint8_t bitmask)
 {

@@ -234,8 +234,16 @@ int main(void)
 	LSM6DS3_SetupRefs(&strLSMDev, &hi2c1, LSM6DS3_ADDR_LOW);
 	bool b1 = LSM6DS3_Config(&strLSMDev, En_Mode_Both, En_Pow_HIGHPERF_416Hz, 0, 2);
 	//bool b2 = LSM6DS3_Set_Events(&strLSMDev, true, true, true, true, true);
-	bool b2 = LSM6DS3_Set_Events(&strLSMDev, true, false, false, false, false); //Only free fall event
+	bool b2 = LSM6DS3_Set_Events(&strLSMDev, true, false, false, true, false); //Only free fall event
 
+	bool readI2C = I2C_Read_Devices_Registers(&hi2c1, i2cDevices, (sizeof(i2cDevices) / sizeof(i2cDevices[0])) );
+
+	/*Added by FLG for debug purpose*/
+	if( bI2C1Res == 1 && bpc1 ==1 && bpc2 ==1 && bpc3 ==1 && bpc4 == 1 && b1 ==1 && b2 == 1 && readI2C == 1){
+		greenON;
+		HAL_Delay(2000);
+		greenOFF;
+	}
 	while (1)
 	{
 		/* Process LSM6DS3 events messages from event queue */
@@ -252,39 +260,39 @@ int main(void)
 				{
 					/* free fall event was detected */
 					cnt_Event_FF++;
-					blueON;
+					redON; //Added by FLG for debug purpose
 				}
 
 				if(eventCode & MASK_EVENT_WU)
 				{
 					/* wake up event detected */
 					cnt_Event_WU++;
-					blueON;
+					//blueON;
 				}
 
 				if(eventCode & MASK_EVENT_SL)
 				{
 					/* sleep event detected */
 					cnt_Event_SL++;
-					blueON;
+					//blueON;
 				}
 
 				if(eventCode & MASK_EVENT_MD)
 				{
 					/* motion detect event detected */
 					cnt_Event_MD++;
-					blueON;
+					//blueON;
 				}
 
 				if(eventCode & MASK_EVENT_PD)
 				{
 					/* step event detected */
 					cnt_Event_PD++;
-					blueON;
+					//blueON;
 				}
 
 				/* Read all the device registers which we are interested in for all devices */
-				bool readI2C = I2C_Read_Devices_Registers(&hi2c1, i2cDevices, (sizeof(i2cDevices) / sizeof(i2cDevices[0])) );
+				readI2C = I2C_Read_Devices_Registers(&hi2c1, i2cDevices, (sizeof(i2cDevices) / sizeof(i2cDevices[0])) );
 
 				if(readI2C)
 				{
@@ -292,7 +300,7 @@ int main(void)
 					/* These structures have a byte array which will have the register values designed in initialization */
                     /* inspect i2cDevices in watch window */
 					HAL_Delay(3000);
-					blueOFF;
+					redOFF;
 				}
 			}
 			else
